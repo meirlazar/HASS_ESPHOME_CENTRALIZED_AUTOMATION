@@ -1,0 +1,22 @@
+name: "office_arduino"
+area: "office"
+staticip: xxx.xxx.xxx.xxx
+active: ${P27}
+passive: ${P4}
+flame: ${P35}
+led_array: ${P13}
+num_leds: "15"
+dsound: ${P35}
+vibrate: ${P32}
+scl: ${SCL}
+sda: ${SDA}
+ext_door: ${P14}
+window: ${P19}
+fence: ${P18}
+light: ${RX0}
+radar_tx: ${TX2}
+radar_rx: ${RX2}
+
+LOGGER: "NONE" 
+apikey: "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+otapass: xxxxxxxxxxxxxxxxxxxxxxxxxxx
