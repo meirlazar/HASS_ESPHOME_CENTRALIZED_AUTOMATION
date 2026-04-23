@@ -1,97 +1,167 @@
-- id: '1772084211168'
-  alias: Master Area Control Router
-  description: Edge-Triggered Rule Engine Router (Pure State)
-  triggers:
+# create input_buttons for each area to turn on (elevate) or off (drop). The LoveLace card for it is under lovelace/elevate_or_drop.yaml
+alias: ELEVATE OR DROP ANY ROOM - BUTTON PRESS
+description: Manual override routing for area buttons
+triggers:
   - trigger: state
     entity_id:
-    - binary_sensor.porch_arduino_radar_room_occupied
-    - binary_sensor.kid1_arduino_room_occupied
-    - binary_sensor.kid2_arduino_room_occupied
-    - binary_sensor.parents_arduino_radar_room_occupied
-    - binary_sensor.gym_arduino_radar_room_occupied
-    - binary_sensor.kid3_arduino_radar_room_occupied
-    - binary_sensor.kid4_arduino_radar_room_occupied
-    - binary_sensor.computer_arduino_radar_room_occupied
-    - binary_sensor.pantry_arduino_room_occupied
-    - binary_sensor.laundry_arduino_radar_room_occupied
-    - binary_sensor.office_arduino_radar_room_occupied
-    - binary_sensor.living_arduino_radar_room_occupied
-    - binary_sensor.dining_arduino_room_occupied
-    - binary_sensor.overhang_arduino_radar_room_occupied
+      - input_button.computer_drop
+      - input_button.gym_drop
+      - input_button.deck_drop
+      - input_button.porch_drop
+      - input_button.dining_drop
+      - input_button.living_drop
+      - input_button.office_drop
+      - input_button.pantry_drop
+      - input_button.parents_drop
+      - input_button.backyard_drop
+      - input_button.overhang_drop
+      - input_button.computer_elevate
+      - input_button.gym_elevate
+      - input_button.deck_elevate
+      - input_button.porch_elevate
+      - input_button.dining_elevate
+      - input_button.living_elevate
+      - input_button.office_elevate
+      - input_button.pantry_elevate
+      - input_button.parents_elevate
+      - input_button.backyard_elevate
+      - input_button.overhang_elevate
     not_from:
-    - unknown
-    - unavailable
+      - unknown
+      - unavailable
     not_to:
-    - unknown
-    - unavailable
+      - unknown
+      - unavailable
+actions:
+  - variables:
+      trig: "{{ trigger.entity_id }}"
+      target_area: "{{ trig.split('.')[1].replace('_elevate','').replace('_drop','') }}"
+      action: "{{ 'off' if '_drop' in trig else 'on' }}"
+      turniton: "{{ action == 'on' }}"
+      v: >-
+        {% from 'auto.jinja' import set_all_vars %} {{ set_all_vars(trig,
+        area_override=target_area) | from_json }}
+  - if:
+      - condition: template
+        value_template: "{{ v.is_frozen }}"
+    then:
+      - stop: A FREEZE IS IN EFFECT for {{ target_area }}
+  - action: script.turn_on_myareas_entities
+    data:
+      myarea: "{{ target_area }}"
+      action: "{{ action }}"
+      turniton: "{{ turniton }}"
+      room_devices: "{{ v.devices_to_turn_on if turniton else v.devices_to_turn_off }}"
+      max_on_brightness: 100
+      max_off_brightness: 0
+      off_if_above: 0
+      on_if_below: 100
+      transition_time: 10
+  - action: logbook.log
+    data:
+      name: BUTTON OVERRIDE
+      message: Manual {{ action | upper }} for {{ target_area }} (Ignored Tracker)
+mode: parallel
+max: 20
+
+
+
+
+
+# this automation controls what happens when a room is considered occupied or any trigger you want like a door opening or closing.
+# it will use the auto.jinja and kickoff the master room engine script, which will in turn hand-off the macro smart fade or snap for the actual turning devices on or off.
+alias: Master Area Control Router
+description: Edge-Triggered Rule Engine Router (Pure State)
+triggers:
   - trigger: state
     entity_id:
-    - binary_sensor.office_door_sensor
-    - binary_sensor.office_arduino_exterior_door_sensor
-    - binary_sensor.office_arduino_fence_door_sensor
-    - binary_sensor.porch_arduino_external_door_sensor
-    - binary_sensor.gym_arduino_internal_door_sensor
-    - binary_sensor.gym_arduino_exterior_door_sensor
-    - binary_sensor.living_arduino_exterior_door_sensor
-    - binary_sensor.kid1_arduino_internal_door_sensor
-    - binary_sensor.parents_arduino_left_door_sensor
-    - binary_sensor.parents_arduino_right_door_sensor
-    - binary_sensor.computer_arduino_internal_door_sensor
+      - binary_sensor.porch_arduino_radar_room_occupied
+      - binary_sensor.parents_arduino_radar_room_occupied
+      - binary_sensor.gym_arduino_radar_room_occupied
+      - binary_sensor.computer_arduino_radar_room_occupied
+      - binary_sensor.pantry_arduino_room_occupied
+      - binary_sensor.laundry_arduino_radar_room_occupied
+      - binary_sensor.office_arduino_radar_room_occupied
+      - binary_sensor.living_arduino_radar_room_occupied
+      - binary_sensor.dining_arduino_room_occupied
+      - binary_sensor.overhang_arduino_radar_room_occupied
     not_from:
-    - unknown
-    - unavailable
+      - unknown
+      - unavailable
+    not_to:
+      - unknown
+      - unavailable
+  - trigger: state
+    entity_id:
+      - binary_sensor.office_door_sensor
+      - binary_sensor.office_arduino_exterior_door_sensor
+      - binary_sensor.office_arduino_fence_door_sensor
+      - binary_sensor.porch_arduino_external_door_sensor
+      - binary_sensor.gym_arduino_internal_door_sensor
+      - binary_sensor.gym_arduino_exterior_door_sensor
+      - binary_sensor.living_arduino_exterior_door_sensor
+      - binary_sensor.parents_arduino_door_sensor
+      - binary_sensor.computer_arduino_internal_door_sensor
+    not_from:
+      - unknown
+      - unavailable
     to:
-    - 'on'
-  actions:
+      - "on"
+actions:
   - variables:
-      target_area: '{{ area_id(trigger.entity_id) | default(''unknown'') }}'
-      new_state: '{{ trigger.to_state.state }}'
-      old_state: '{{ trigger.from_state.state }}'
-      friendly_name: '{{ state_attr(trigger.entity_id, ''friendly_name'') | default(trigger.entity_id)
-        }}'
-      v_json: '{%- from ''auto.jinja'' import set_all_vars -%}  {{- set_all_vars(trigger.entity_id,
-        area_override=target_area) -}}'
-      v: '{{ v_json | from_json }}'
+      target_area: "{{ area_id(trigger.entity_id) | default('unknown') }}"
+      new_state: "{{ trigger.to_state.state }}"
+      old_state: "{{ trigger.from_state.state }}"
+      friendly_name: >-
+        {{ state_attr(trigger.entity_id, 'friendly_name') |
+        default(trigger.entity_id) }}
+      v_json: >-
+        {%- from 'auto.jinja' import set_all_vars -%}  {{-
+        set_all_vars(trigger.entity_id, area_override=target_area) -}}
+      v: "{{ v_json | from_json }}"
   - action: logbook.log
     data:
-      name: "\U0001F9ED ROUTER: {{ target_area | upper }}"
-      message: "\U0001F6A8 Intercepted: {{ friendly_name }} \U0001F504 State Change:
-        {{ old_state | upper }} ➔ {{ new_state | upper }}  \U0001F4E6 Payload: auto.jinja
-        loaded successfully"
+      name: "🧭 ROUTER: {{ target_area | upper }}"
+      message: >-
+        🚨 Intercepted: {{ friendly_name }} 🔄 State Change: {{ old_state |
+        upper }} ➔ {{ new_state | upper }}  📦 Payload: auto.jinja loaded
+        successfully
   - if:
-    - condition: template
-      value_template: '{{ v.is_frozen or (v.is_shabbos and not v.cointoss) }}'
+      - condition: template
+        value_template: "{{ v.is_frozen or (v.is_shabbos and not v.cointoss) }}"
     then:
-    - action: logbook.log
-      data:
-        name: '⛔ ROUTER BLOCKED: {{ target_area | upper }}'
-        message: "\U0001F9CA Frozen Status: {{ v.is_frozen }}  \U0001F319 Shabbos
-          Status: {{ v.is_shabbos }}  (Coin: {{ v.cointoss | title }})  \U0001F6D1
-          Action: Signal terminated at the Router."
-    - stop: "\U0001F9CA Frozen OR \U0001F319 Shabbos (Tails) - Router Blocked"
+      - action: logbook.log
+        data:
+          name: "⛔ ROUTER BLOCKED: {{ target_area | upper }}"
+          message: >-
+            🧊 Frozen Status: {{ v.is_frozen }}  🌙 Shabbos Status: {{
+            v.is_shabbos }}  (Coin: {{ v.cointoss | title }})  🛑 Action: Signal
+            terminated at the Router.
+      - stop: 🧊 Frozen OR 🌙 Shabbos (Tails) - Router Blocked
   - action: logbook.log
     data:
-      name: "\U0001F680 ROUTER: HANDOFF"
-      message: ✅ Checks passed.  ➡️ Sending {{ target_area | upper }} ({{ new_state
-        | upper }}) to Master Room Engine.
+      name: "🚀 ROUTER: HANDOFF"
+      message: >-
+        ✅ Checks passed.  ➡️ Sending {{ target_area | upper }} ({{ new_state |
+        upper }}) to Master Room Engine.
   - action: script.master_room_engine
     data:
-      trig: '{{ trigger.entity_id }}'
-      force_action: '{{ new_state }}'
-      v: '{{ v }}'
-  mode: parallel
-  max: 50
-- id: '1773218392524'
-  alias: '⚙️ System: Global Environment Sync'
-  description: Re-evaluates all occupied rooms when periods, sun, or Shabbos status
-    changes.
-  triggers:
+      trig: "{{ trigger.entity_id }}"
+      force_action: "{{ new_state }}"
+      v: "{{ v }}"
+mode: parallel
+max: 50
+
+# a sync up once in a while or any trigger you want to kickoff the Master Area Control Router automation occasionally to sync up anything that needs it.
+alias: "⚙️ System: Global Environment Sync"
+description: Re-evaluates all occupied rooms when periods, sun, or Shabbos status changes.
+triggers:
   - trigger: homeassistant
     event: start
     id: System Boot
   - trigger: sun
     event: sunset
-    offset: -00:30:00
+    offset: "-00:30:00"
     id: Sunset Approaching
   - trigger: sun
     event: sunrise
@@ -99,32 +169,33 @@
   - trigger: state
     entity_id: binary_sensor.jewish_calendar_issur_melacha_in_effect
     not_from:
-    - unknown
-    - unavailable
+      - unknown
+      - unavailable
     id: Shabbos Transition
   - trigger: time
-    at: 05:00:00
+    at: "05:00:00"
     id: Early Morning Start
   - trigger: time
-    at: 09:00:00
+    at: "09:00:00"
     id: Worktime Start
   - trigger: time
-    at: '10:00:00'
+    at: "10:00:00"
     id: Sleeptime End
   - trigger: time
-    at: '18:00:00'
+    at: "18:00:00"
     id: Worktime End
   - trigger: time
-    at: '20:00:00'
+    at: "20:00:00"
     id: Late Evening Start
   - trigger: time
-    at: '23:00:00'
+    at: "23:00:00"
     id: Sleeptime Start
-  actions:
+actions:
   - action: logbook.log
     data:
-      name: "\U0001F504 GLOBAL SYNC INITIATED"
-      message: 'Triggered by: {{ trigger.id }}. Re-evaluating all occupied rooms.'
+      name: 🔄 GLOBAL SYNC INITIATED
+      message: "Triggered by: {{ trigger.id }}. Re-evaluating all occupied rooms."
   - action: script.sync_all_rooms_apply_rules
     data: {}
-  mode: queued
+mode: queued
+
