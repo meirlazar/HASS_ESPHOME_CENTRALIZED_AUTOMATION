@@ -1,0 +1,67 @@
+# File: common/packages/occupancy/ld2450.yaml
+
+
+# REMEMBER TO USE THE ESP32 RX2 TO CONNECT TO THE CHIPS TX PIN
+# AND THE ESP32 TX2 TO THE CHIPS RX PIN 
+
+uart:
+  tx_pin: ${radar_tx}
+  rx_pin: ${radar_rx}
+  baud_rate: 256000
+  parity: NONE
+  stop_bits: 1
+
+ld2450:
+
+binary_sensor:
+  # This is the ONLY sensor your HA Master Router cares about.
+  # We use the radar's 'has_target' to drive it directly.
+  - platform: ld2450
+    has_target:
+      name: "Room Occupied"
+      id: room_occupied
+      device_class: occupancy
+      icon: "mdi:human-male-female-child"
+      # THE MAGIC BUFFER: 
+      # This guarantees the sensor won't flip to 'off' unless the room 
+      # has been completely empty for 10 solid seconds.
+      filters:
+        - delayed_off: 10s 
+
+  # Diagnostic sensors (Optional, but good for testing)
+  - platform: ld2450
+    has_moving_target:
+      name: "Moving Target"
+    has_still_target:
+      name: "Still Target"
+
+number:
+  # The hardware-level timeout. Set this to 5s in HA, and combined 
+  # with the delayed_off filter above, you get a rock-solid 15s total buffer.
+  - platform: ld2450
+    presence_timeout:
+      name: "Radar Timeout"
+
+  # Zone configurations for tuning out fans/pets
+  - platform: ld2450
+    zone_1:
+      x1:
+        name: "Zone-1 X1"
+      y1:
+        name: "Zone-1 Y1"
+      x2:
+        name: "Zone-1 X2"
+      y2:
+        name: "Zone-1 Y2"
+
+select:
+  - platform: ld2450
+    zone_type:
+      name: "Zone Type"
+
+switch:
+  - platform: ld2450
+    bluetooth:
+      name: "Bluetooth"
+    multi_target:
+      name: "Multi Target Tracking"

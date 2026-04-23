@@ -1,0 +1,55 @@
+# File: common/packages/occupancy/ld2420.yaml
+
+# REMEMBER TO USE THE ESP32 RX2 TO CONNECT TO THE CHIPS TX PIN
+# AND THE ESP32 TX2 TO THE CHIPS RX PIN 
+
+uart:
+  tx_pin: ${radar_tx}
+  rx_pin: ${radar_rx}
+  baud_rate: 115200 # DIFFERENT FROM LD2410/LD2450!
+  parity: NONE
+  stop_bits: 1
+
+ld2420:
+
+binary_sensor:
+  # The single source of truth for your HA Router
+  - platform: ld2420
+    has_target:
+      name: "Room Occupied"
+      id: room_occupied
+      device_class: occupancy
+      icon: "mdi:human-male-female-child"
+      filters:
+        - delayed_off: 10s # The magic 10-second dropout buffer
+
+sensor:
+  # The diagnostic sensor we will use for the HA Graph
+  - platform: ld2420
+    moving_distance:
+      name: "Target Distance"
+      id: target_distance
+      unit_of_measurement: "cm"
+      filters:
+        # Prevent database flooding while still getting fast updates
+        - delta: 5.0 
+        - throttle: 500ms
+
+# Factory tuning controls directly in HA
+number:
+  - platform: ld2420
+    max_detect_distance:
+      name: "Max Detection Distance"
+  - platform: ld2420
+    min_detect_distance:
+      name: "Min Detection Distance"
+
+button:
+  - platform: ld2420
+    apply_config:
+      name: "Apply Configuration"
+    restart:
+      name: "Restart Radar"
+      
+      
+      

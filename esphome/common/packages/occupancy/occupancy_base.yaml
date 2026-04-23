@@ -1,0 +1,75 @@
+# File: common/packages/occupancy/occupancy_base.yaml
+
+globals:
+  - id: room_confidence
+    type: float
+    initial_value: '0.0'
+  
+  - id: light_off_time
+    type: uint32_t
+    initial_value: '0'
+
+interval:
+  - interval: 5s
+    then:
+      - lambda: |-
+          float minutes = ${timeout_minutes};
+          
+          // 1. The Decay Math
+          if (minutes > 0) {
+            float leak_amount = 80.0 / (minutes * 12.0); 
+            if (id(room_confidence) > 0) {
+              id(room_confidence) -= leak_amount;
+            }
+          } else {
+            id(room_confidence) = 0.0; 
+          }
+  
+          // 2. Floor Safety Net
+          if (id(room_confidence) < 0) {
+            id(room_confidence) = 0.0;
+          }
+  
+          // 3. Boot Warning Fix: Ensure state exists before checking it
+          if (!id(room_occupied).has_state()) {
+            id(room_occupied).publish_state(false);
+          }
+  
+          // 4. Hysteresis Trigger Logic
+          if (id(room_confidence) >= 95 && !id(room_occupied).state) {
+            id(room_occupied).publish_state(true);
+          } else if (id(room_confidence) <= 20 && id(room_occupied).state) {
+            id(room_occupied).publish_state(false);
+          }
+
+binary_sensor:
+  - platform: template
+    name: "Room Occupied" 
+    id: room_occupied
+    device_class: occupancy
+    icon: "mdi:human-male-female-child"
+
+sensor:
+  - platform: template
+    name: "Confidence Score"
+    id: confidence_score
+    unit_of_measurement: "%"
+    accuracy_decimals: 1
+    update_interval: 5s
+    lambda: |-
+      return id(room_confidence);
+
+# ---------------------------------------------------------
+# NEW: The "Instant Eviction" Override 
+# ---------------------------------------------------------
+button:
+  - platform: template
+    name: "Clear Occupancy"
+    id: clear_occupancy
+    icon: "mdi:broom"
+    entity_category: "config"
+    on_press:
+      then:
+        - lambda: |-
+            id(room_confidence) = 0.0;
+            id(room_occupied).publish_state(false);

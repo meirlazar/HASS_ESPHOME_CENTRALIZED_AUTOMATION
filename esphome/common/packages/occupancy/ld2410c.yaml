@@ -1,0 +1,801 @@
+# File: common/packages/occupancy/ld2410c.yaml
+
+# ==============================================================================
+# THE BOOT INJECTION (Forces your defaults to the hardware on startup)
+# ==============================================================================
+
+# REMEMBER TO USE THE ESP32 RX2 TO CONNECT TO THE CHIPS TX PIN
+# AND THE ESP32 TX2 TO THE CHIPS RX PIN 
+# File: common/packages/occupancy/ld2410c.yaml
+
+# REMEMBER TO USE THE ESP32 RX2 TO CONNECT TO THE CHIPS TX PIN
+# AND THE ESP32 TX2 TO THE CHIPS RX PIN 
+# File: common/packages/occupancy/ld2410c.yaml
+
+# REMEMBER TO USE THE ESP32 RX2 TO CONNECT TO THE CHIPS TX PIN
+# AND THE ESP32 TX2 TO THE CHIPS RX PIN 
+uart:
+  tx_pin: ${radar_tx}
+  rx_pin: ${radar_rx}
+  baud_rate: 256000
+
+ld2410:
+
+# ==============================================================================
+# 🌐 GLOBALS (For Auto-Calibration Math)
+# ==============================================================================
+globals:
+  - id: highest_walked_gate
+    type: int
+    restore_value: false
+    initial_value: '0'
+
+binary_sensor:
+  - platform: ld2410
+    has_target:
+      name: "Radar Room Occupied"
+      id: radar_room_occupied
+      device_class: occupancy
+      icon: "mdi:human-male-female-child"
+      filters:
+        - delayed_off: 120s # The magic dropout buffer
+        
+    has_moving_target:
+      name: Radar Has Moving Target
+      id: has_moving_target
+      
+    has_still_target:
+      name: Radar Has Still Target
+      id: has_still_target
+
+switch:
+  - platform: ld2410
+    engineering_mode:
+      name: "1. Start Empty Room Mode"
+      id: radar_engineering_mode
+      entity_category: "config"
+      restore_mode: RESTORE_DEFAULT_OFF
+      
+    bluetooth:
+      name: "0. Enable Bluetooth"
+      id: radar_bluetooth_control
+      entity_category: "config"
+      restore_mode: RESTORE_DEFAULT_ON
+
+  # ----------------------------------------------------------------------------
+  # 🚶 BOUNDARY WALK CALIBRATOR (Tracks how far you walk in the room)
+  # ----------------------------------------------------------------------------
+  - platform: template
+    name: "3. Start Walls Mode"
+    id: radar_set_borders_mode
+    optimistic: true
+    entity_category: "config"
+    icon: mdi:foot-print
+    on_turn_on:
+      - lambda: 'id(highest_walked_gate) = 0;'
+      - logger.log: "BOUNDARY CALIBRATION: Started! Walk to the far edges of the room."
+
+number:
+  # Hardware-level timeouts and distance gates
+  - platform: ld2410
+  
+    timeout:
+      name: "Internal Radar Occupied Timeout"
+      id: internal_radar_occupied_timeout
+      internal: true
+
+    # --------------------------------------------------------------------------
+    # 🔒 HIDDEN HARDWARE GATES (These now power the human-readable sliders)
+    # --------------------------------------------------------------------------
+    max_move_distance_gate:
+      name: "Radar Max Move Gate Raw"
+      id: max_move_gate
+      internal: true
+      on_value:
+        then:
+          - lambda: |-
+              float res_cm = 75.0;
+              if (id(distance_resolution).has_state() && id(distance_resolution).current_option().find("0.2") != std::string::npos) {
+                res_cm = 20.0;
+              }
+              float actual_feet = (x * res_cm) / 30.48;
+              id(radar_move_limit_ft).publish_state(actual_feet);
+      
+    max_still_distance_gate:
+      name: "Radar Max Still Gate Raw"
+      id: max_still_gate
+      internal: true
+      on_value:
+        then:
+          - lambda: |-
+              float res_cm = 75.0;
+              if (id(distance_resolution).has_state() && id(distance_resolution).current_option().find("0.2") != std::string::npos) {
+                res_cm = 20.0;
+              }
+              float actual_feet = (x * res_cm) / 30.48;
+              id(radar_still_limit_ft).publish_state(actual_feet);
+      
+    light_threshold:
+      name: Radar Light threshold
+      id: radar_light_threshold
+      internal: true
+      
+    # --------------------------------------------------------------------------
+    # 🤫 HIDDEN ENERGY THRESHOLDS (G0 - G8)
+    # --------------------------------------------------------------------------
+    g0:
+      move_threshold:
+        name: G0 move threshold
+        id: g0_move_threshold
+        mode: box
+      still_threshold:
+        name: G0 still threshold
+        id: g0_still_threshold
+        mode: box
+    g1:
+      move_threshold:
+        name: G1 move threshold
+        id: g1_move_threshold
+        mode: box
+      still_threshold:
+        name: G1 still threshold
+        id: g1_still_threshold
+        mode: box
+    g2:
+      move_threshold:
+        name: G2 move threshold
+        id: g2_move_threshold
+        mode: box
+      still_threshold:
+        name: G2 still threshold
+        id: g2_still_threshold
+        mode: box
+    g3:
+      move_threshold:
+        name: G3 move threshold
+        id: g3_move_threshold
+        mode: box
+      still_threshold:
+        name: G3 still threshold
+        id: g3_still_threshold
+        mode: box
+    g4:
+      move_threshold:
+        name: G4 move threshold
+        id: g4_move_threshold
+        mode: box
+      still_threshold:
+        name: G4 still threshold
+        id: g4_still_threshold
+        mode: box
+    g5:
+      move_threshold:
+        name: G5 move threshold
+        id: g5_move_threshold
+        mode: box
+      still_threshold:
+        name: G5 still threshold
+        id: g5_still_threshold
+        mode: box
+    g6:
+      move_threshold:
+        name: G6 move threshold
+        id: g6_move_threshold
+        mode: box
+      still_threshold:
+        name: G6 still threshold
+        id: g6_still_threshold
+        mode: box
+    g7:
+      move_threshold:
+        name: G7 move threshold
+        id: g7_move_threshold
+        mode: box
+      still_threshold:
+        name: G7 still threshold
+        id: g7_still_threshold
+        mode: box
+    g8:
+      move_threshold:
+        name: G8 move threshold
+        id: g8_move_threshold
+        mode: box
+      still_threshold:
+        name: G8 still threshold
+        id: g8_still_threshold
+        mode: box
+        
+  - platform: template
+    name: "Radar Occupied Timeout"
+    id: radar_occupied_timeout
+    min_value: 0
+    max_value: 1200
+    initial_value: 600
+    restore_value: true
+    step: 25
+    optimistic: true
+    entity_category: "config"
+    set_action:
+      - number.set:
+          id: internal_radar_occupied_timeout
+          value: !lambda 'return x;'
+
+  # ----------------------------------------------------------------------------
+  # 📏 HUMAN-READABLE BOUNDARY SLIDERS (IN FEET)
+  # ----------------------------------------------------------------------------
+  - platform: template
+    name: "Radar Max Detect Move Limit"
+    id: radar_move_limit_ft
+    unit_of_measurement: "ft"
+    min_value: 0.0
+    max_value: 20.0
+    initial_value: 16.0
+    restore_value: true
+    step: 0.5
+    entity_category: "config"
+    icon: "mdi:ruler"
+    set_action:
+      - lambda: |-
+          float res_cm = 75.0;
+          if (id(distance_resolution).current_option().find("0.2") != std::string::npos) { res_cm = 20.0; }
+          int gate = (int)((x * 30.48) / res_cm);
+          if (gate > 8) gate = 8;
+          if (gate < 0) gate = 0;
+          id(max_move_gate).make_call().set_value(gate).perform();
+
+  - platform: template
+    name: "Radar Max Detect Still Limit"
+    id: radar_still_limit_ft
+    unit_of_measurement: "ft"
+    min_value: 0.0
+    max_value: 20.0
+    initial_value: 16.0
+    restore_value: true
+    step: 0.5
+    entity_category: "config"
+    icon: "mdi:ruler"
+    set_action:
+      - lambda: |-
+          float res_cm = 75.0;
+          if (id(distance_resolution).current_option().find("0.2") != std::string::npos) { res_cm = 20.0; }
+          
+          int gate = (int)((x * 30.48) / res_cm);
+          if (gate > 8) gate = 8;
+          if (gate < 0) gate = 0;
+          
+          id(max_still_gate).make_call().set_value(gate).perform();
+            
+sensor:
+  - platform: ld2410
+  
+    light:
+      name: Radar Light
+      id: radar_light
+      internal: true
+      
+    detection_distance:
+      name: Radar Detection Distance Raw
+      id: raw_detection_distance
+      internal: true
+      
+    moving_distance:
+      name: Radar Moving Distance Raw
+      id: raw_moving_distance
+      internal: true
+      on_value:
+        then:
+          # This connects the moving distance to the Boundary Walk Mode
+          - if:
+              condition:
+                switch.is_on: radar_set_borders_mode
+              then:
+                - lambda: |-
+                    float gate_size_cm = 75.0;
+                    if (id(distance_resolution).has_state() && id(distance_resolution).current_option().find("0.2") != std::string::npos) {
+                      gate_size_cm = 20.0;
+                    }
+                    int current_gate = (int)(x / gate_size_cm);
+                    if (current_gate > id(highest_walked_gate)) {
+                      id(highest_walked_gate) = current_gate;
+                      ESP_LOGI("BOUNDARY", "New furthest gate reached: Gate %d", current_gate);
+                    }
+      
+    still_distance:
+      name: Radar Still Distance Raw
+      id: raw_still_distance
+      internal: true
+      
+    moving_energy:
+      name: Radar Move Energy
+      id: radar_move_energy
+      
+    still_energy:
+      name: Radar Still Energy
+      id: radar_still_energy
+      
+    # --------------------------------------------------------------------------
+    # 🤫 INTERNAL ENERGY SENSORS (For Math Only)
+    # --------------------------------------------------------------------------
+    g0:
+      move_energy:
+        name: G0 move energy
+        id: g0_move_peak
+        internal: true
+        filters:
+          - lambda: |-
+              static float p = 0.0;
+              if (!id(radar_engineering_mode).state) { p = 0.0; return 0.0; }
+              if (isnan(x)) return p;
+              if (x > p) p = x;
+              return p;
+      still_energy:
+        name: G0 still energy
+        id: g0_still_peak
+        internal: true
+        filters:
+          - lambda: |-
+              static float p = 0.0;
+              if (!id(radar_engineering_mode).state) { p = 0.0; return 0.0; }
+              if (isnan(x)) return p;
+              if (x > p) p = x;
+              return p;
+    g1:
+      move_energy:
+        name: G1 move energy
+        id: g1_move_peak
+        internal: true
+        filters:
+          - lambda: |-
+              static float p = 0.0;
+              if (!id(radar_engineering_mode).state) { p = 0.0; return 0.0; }
+              if (isnan(x)) return p;
+              if (x > p) p = x;
+              return p;
+      still_energy:
+        name: G1 still energy
+        id: g1_still_peak
+        internal: true
+        filters:
+          - lambda: |-
+              static float p = 0.0;
+              if (!id(radar_engineering_mode).state) { p = 0.0; return 0.0; }
+              if (isnan(x)) return p;
+              if (x > p) p = x;
+              return p;
+    g2:
+      move_energy:
+        name: G2 move energy
+        id: g2_move_peak
+        internal: true
+        filters:
+          - lambda: |-
+              static float p = 0.0;
+              if (!id(radar_engineering_mode).state) { p = 0.0; return 0.0; }
+              if (isnan(x)) return p;
+              if (x > p) p = x;
+              return p;
+      still_energy:
+        name: G2 still energy
+        id: g2_still_peak
+        internal: true
+        filters:
+          - lambda: |-
+              static float p = 0.0;
+              if (!id(radar_engineering_mode).state) { p = 0.0; return 0.0; }
+              if (isnan(x)) return p;
+              if (x > p) p = x;
+              return p;
+    g3:
+      move_energy:
+        name: G3 move energy
+        id: g3_move_peak
+        internal: true
+        filters:
+          - lambda: |-
+              static float p = 0.0;
+              if (!id(radar_engineering_mode).state) { p = 0.0; return 0.0; }
+              if (isnan(x)) return p;
+              if (x > p) p = x;
+              return p;
+      still_energy:
+        name: G3 still energy
+        id: g3_still_peak
+        internal: true
+        filters:
+          - lambda: |-
+              static float p = 0.0;
+              if (!id(radar_engineering_mode).state) { p = 0.0; return 0.0; }
+              if (isnan(x)) return p;
+              if (x > p) p = x;
+              return p;
+    g4:
+      move_energy:
+        name: G4 move energy
+        id: g4_move_peak
+        internal: true
+        filters:
+          - lambda: |-
+              static float p = 0.0;
+              if (!id(radar_engineering_mode).state) { p = 0.0; return 0.0; }
+              if (isnan(x)) return p;
+              if (x > p) p = x;
+              return p;
+      still_energy:
+        name: G4 still energy
+        id: g4_still_peak
+        internal: true
+        filters:
+          - lambda: |-
+              static float p = 0.0;
+              if (!id(radar_engineering_mode).state) { p = 0.0; return 0.0; }
+              if (isnan(x)) return p;
+              if (x > p) p = x;
+              return p;
+    g5:
+      move_energy:
+        name: G5 move energy
+        id: g5_move_peak
+        internal: true
+        filters:
+          - lambda: |-
+              static float p = 0.0;
+              if (!id(radar_engineering_mode).state) { p = 0.0; return 0.0; }
+              if (isnan(x)) return p;
+              if (x > p) p = x;
+              return p;
+      still_energy:
+        name: G5 still energy
+        id: g5_still_peak
+        internal: true
+        filters:
+          - lambda: |-
+              static float p = 0.0;
+              if (!id(radar_engineering_mode).state) { p = 0.0; return 0.0; }
+              if (isnan(x)) return p;
+              if (x > p) p = x;
+              return p;
+    g6:
+      move_energy:
+        name: G6 move energy
+        id: g6_move_peak
+        internal: true
+        filters:
+          - lambda: |-
+              static float p = 0.0;
+              if (!id(radar_engineering_mode).state) { p = 0.0; return 0.0; }
+              if (isnan(x)) return p;
+              if (x > p) p = x;
+              return p;
+      still_energy:
+        name: G6 still energy
+        id: g6_still_peak
+        internal: true
+        filters:
+          - lambda: |-
+              static float p = 0.0;
+              if (!id(radar_engineering_mode).state) { p = 0.0; return 0.0; }
+              if (isnan(x)) return p;
+              if (x > p) p = x;
+              return p;
+    g7:
+      move_energy:
+        name: G7 move energy
+        id: g7_move_peak
+        internal: true
+        filters:
+          - lambda: |-
+              static float p = 0.0;
+              if (!id(radar_engineering_mode).state) { p = 0.0; return 0.0; }
+              if (isnan(x)) return p;
+              if (x > p) p = x;
+              return p;
+      still_energy:
+        name: G7 still energy
+        id: g7_still_peak
+        internal: true
+        filters:
+          - lambda: |-
+              static float p = 0.0;
+              if (!id(radar_engineering_mode).state) { p = 0.0; return 0.0; }
+              if (isnan(x)) return p;
+              if (x > p) p = x;
+              return p;
+    g8:
+      move_energy:
+        name: G8 move energy
+        id: g8_move_peak
+        internal: true
+        filters:
+          - lambda: |-
+              static float p = 0.0;
+              if (!id(radar_engineering_mode).state) { p = 0.0; return 0.0; }
+              if (isnan(x)) return p;
+              if (x > p) p = x;
+              return p;
+      still_energy:
+        name: G8 still energy
+        id: g8_still_peak
+        internal: true
+        filters:
+          - lambda: |-
+              static float p = 0.0;
+              if (!id(radar_engineering_mode).state) { p = 0.0; return 0.0; }
+              if (isnan(x)) return p;
+              if (x > p) p = x;
+              return p;
+
+button:
+  - platform: ld2410
+    factory_reset:
+      name: Factory reset
+      entity_category: "diagnostic"
+    restart:
+      name: Restart
+      entity_category: "diagnostic"
+    query_params:
+      name: Query params
+      entity_category: "diagnostic"
+      
+  # ----------------------------------------------------------------------------
+  # 🛠️ AUTO-TUNE BUTTON 1: THE NOISE GATES
+  # ----------------------------------------------------------------------------
+  - platform: template
+    name: "2. Stop Empty Room Mode"
+    id: lock_thresholds_btn
+    entity_category: "config"
+    icon: "mdi:lock-check"
+    on_press:
+      - lambda: |-
+          auto lock_gate = [](number::Number* threshold, sensor::Sensor* peak) {
+            if (peak->state == 0.0f) return;
+            float val = peak->state + 5.0f;
+            if (val > 100.0f) val = 100.0f;
+            if (val < 0.0f) val = 0.0f; 
+            threshold->make_call().set_value(val).perform();
+          };
+
+          lock_gate(id(g0_move_threshold), id(g0_move_peak));
+          lock_gate(id(g0_still_threshold), id(g0_still_peak));
+          lock_gate(id(g1_move_threshold), id(g1_move_peak));
+          lock_gate(id(g1_still_threshold), id(g1_still_peak));
+          lock_gate(id(g2_move_threshold), id(g2_move_peak));
+          lock_gate(id(g2_still_threshold), id(g2_still_peak));
+          lock_gate(id(g3_move_threshold), id(g3_move_peak));
+          lock_gate(id(g3_still_threshold), id(g3_still_peak));
+          lock_gate(id(g4_move_threshold), id(g4_move_peak));
+          lock_gate(id(g4_still_threshold), id(g4_still_peak));
+          lock_gate(id(g5_move_threshold), id(g5_move_peak));
+          lock_gate(id(g5_still_threshold), id(g5_still_peak));
+          lock_gate(id(g6_move_threshold), id(g6_move_peak));
+          lock_gate(id(g6_still_threshold), id(g6_still_peak));
+          lock_gate(id(g7_move_threshold), id(g7_move_peak));
+          lock_gate(id(g7_still_threshold), id(g7_still_peak));
+          lock_gate(id(g8_move_threshold), id(g8_move_peak));
+          lock_gate(id(g8_still_threshold), id(g8_still_peak));
+          
+          ESP_LOGI("custom", "Radar thresholds automagically locked! (Skipped empty gates)");
+
+  # ----------------------------------------------------------------------------
+  # 🧱 AUTO-TUNE BUTTON 2: THE PHYSICAL BOUNDARIES
+  # ----------------------------------------------------------------------------
+  - platform: template
+    name: "4. Stop Walls Mode"
+    id: lock_room_boundaries
+    icon: mdi:wall
+    entity_category: "config"
+    on_press:
+      - if:
+          condition:
+            lambda: 'return id(highest_walked_gate) == 0;'
+          then:
+            - logger.log: 
+                level: ERROR
+                format: "BOUNDARY: No movement detected! Turn on Walk Mode and walk around first."
+          else:
+            - logger.log: "BOUNDARY: Saving Move Gate..."
+            - number.set:
+                id: max_move_gate
+                value: !lambda |-
+                  int final_gate = id(highest_walked_gate) + 1;
+                  if (final_gate > 8) final_gate = 8;
+                  return final_gate;
+            
+            - delay: 1s
+            
+            - logger.log: "BOUNDARY: Saving Still Gate..."
+            - number.set:
+                id: max_still_gate
+                value: !lambda |-
+                  int final_gate = id(highest_walked_gate) + 1;
+                  if (final_gate > 8) final_gate = 8;
+                  return final_gate;
+            
+            - delay: 1s
+            - logger.log: "BOUNDARY: Success! Max Gates locked."
+            - switch.turn_off: radar_set_borders_mode
+      
+text_sensor:
+  - platform: ld2410
+    version:
+      name: Firmware version
+    mac_address:
+      name: MAC address
+      
+
+  - platform: template
+    name: "Radar Detection Distance"
+    id: imperial_detection_distance
+    icon: "mdi:ruler"
+    update_interval: 1s
+    lambda: |-
+      if (isnan(id(raw_detection_distance).state)) return {"Unknown"};
+      float inches = id(raw_detection_distance).state * 0.393701; 
+      if (inches < 12.0) {
+        return {str_snprintf("%.1f in", 10, inches)};
+      } else {
+        int feet = (int)(inches / 12.0);
+        float rem_inches = inches - (feet * 12.0);
+        return {str_snprintf("%d ft %.1f in", 15, feet, rem_inches)};
+      }
+
+  - platform: template
+    name: "Radar Moving Distance"
+    id: imperial_moving_distance
+    icon: "mdi:walk"
+    update_interval: 1s
+    lambda: |-
+      if (isnan(id(raw_moving_distance).state)) return {"Unknown"};
+      float inches = id(raw_moving_distance).state * 0.393701;
+      if (inches < 12.0) {
+        return {str_snprintf("%.1f in", 10, inches)};
+      } else {
+        int feet = (int)(inches / 12.0);
+        float rem_inches = inches - (feet * 12.0);
+        return {str_snprintf("%d ft %.1f in", 15, feet, rem_inches)};
+      }
+
+  - platform: template
+    name: "Radar Still Distance"
+    id: imperial_still_distance
+    icon: "mdi:human-male-board"
+    update_interval: 1s
+    lambda: |-
+      if (isnan(id(raw_still_distance).state)) return {"Unknown"};
+      float inches = id(raw_still_distance).state * 0.393701;
+      if (inches < 12.0) {
+        return {str_snprintf("%.1f in", 10, inches)};
+      } else {
+        int feet = (int)(inches / 12.0);
+        float rem_inches = inches - (feet * 12.0);
+        return {str_snprintf("%d ft %.1f in", 15, feet, rem_inches)};
+      }
+      
+select:
+  - platform: ld2410
+  
+    distance_resolution:
+      name: Radar Distance resolution
+      id: distance_resolution
+      entity_category: "config"
+      
+    light_function:
+      name: Radar Light function
+      id: radar_light_function
+      internal: true
+
+
+# ==============================================================================
+# 🧠 THE LD2410C MASTER TUNING GUIDE & COMPONENT REFERENCE
+# ==============================================================================
+# [Documentation preserved as provided]
+# ==============================================================================
+# 🧠 THE LD2410C MASTER TUNING GUIDE & COMPONENT REFERENCE
+# ==============================================================================
+
+# ------------------------------------------------------------------------------
+# 📐 SECTION 1: CORE SPATIAL SETTINGS
+# ------------------------------------------------------------------------------
+#
+# Distance Resolution (0.2m or 0.75m)
+# DEFINITION: Changes the physical length of the "Gates". 
+#   - 0.75m (Default): Best for normal rooms. Max range is ~6 meters (8 gates).
+#   - 0.20m: Best for extremely precise, close-up detection (like a desk
+#     sensor where you only care about the 1.5 meters around the keyboard). 
+# BEST PRACTICE: Leave at 0.75m for full-room occupancy. Only use 0.2m if
+# you are putting this inside a tiny space like a closet or under a desk.
+#
+# Max Move Gate (0 - 8)
+# DEFINITION: The furthest gate the sensor will look for MACRO movement (walking).
+# TUNING: Multiply the gate number by your resolution (usually 0.75m). If your 
+#   room ends at 3 meters, set this to Gate 4 (3m / 0.75m). 
+# HOW TO KNOW IT WORKS: Walk just outside the room's doorway. The "Moving Target"
+#   sensor should NOT trigger. If it does, lower this gate by 1.
+#
+# Max Still Gate (0 - 8)
+# DEFINITION: The furthest gate the sensor looks for MICRO movement (breathing).
+# TUNING: Same math as above. Often, you want this 1 gate shorter than your 
+#   Move Gate to ensure someone shifting their weight in the next room over 
+#   doesn't keep the lights on through a thin drywall wall.
+
+# ------------------------------------------------------------------------------
+# ⏱️ SECTION 2: TIMERS & COMMUNICATION
+# ------------------------------------------------------------------------------
+#
+# Radar Timeout (Seconds)
+# DEFINITION: The hardware-level cooldown. Once the sensor detects absolute zero
+#   movement and zero breathing, it waits this long before reporting "Clear".
+# BEST PRACTICE: Since we put a `delayed_off: 10s` buffer in your Home Assistant
+#   Router, set this hardware timeout to 5 seconds. This creates a solid 15s 
+#   total safety net.
+#
+# Radar Bluetooth Control (Switch)
+# DEFINITION: Turns the physical BLE radio inside the sensor on or off.
+# BEST PRACTICE: Turn ON when you want to use the HLKRadarTool phone app to tune
+#   the sensor. Turn OFF during normal daily use to reduce wireless noise/heat.
+
+# ------------------------------------------------------------------------------
+# 📊 SECTION 3: DIAGNOSTIC SENSORS (READ-ONLY)
+# ------------------------------------------------------------------------------
+#
+# Moving Distance & Still Distance (Sensors)
+# DEFINITION: Tells you exactly how many centimeters away the target is. 
+# HOW TO USE: Use this to map your room! Walk to the couch, sit down, and look
+#   at the "Still Distance" value. If it says 225cm, you now know the couch is 
+#   exactly at Gate 3 (225 / 75 = 3).
+#
+# Move Energy & Still Energy (Sensors)
+# DEFINITION: The overall "loudness" of the movement currently happening.
+#   A ceiling fan might create a Move Energy of "15". You jumping jacks might
+#   create a Move Energy of "95".
+
+# ------------------------------------------------------------------------------
+# 💡 SECTION 4: THE LIGHT SENSOR
+# ------------------------------------------------------------------------------
+#
+# Light Function (Off / Below / Above) & Light Threshold (0-255)
+# DEFINITION: The LD2410C has a tiny photosensitive resistor on the board.
+#   It can physically block the radar from turning "ON" if the room is already
+#   bright enough. 
+# BEST PRACTICE: Set Function to "OFF". Why? Because if you put this sensor inside
+#   a 3D-printed case or a wall box, it lives in the dark forever. Let Home 
+#   Assistant handle your lux/brightness rules; let the radar just handle presence.
+
+# ------------------------------------------------------------------------------
+# 🛠️ SECTION 5: ENGINEERING MODE & NOISE GATES (THE MEAT AND POTATOES)
+# ------------------------------------------------------------------------------
+#
+# Radar Engineering Mode (Switch)
+# DEFINITION: Flips the sensor into diagnostic mode, unleashing a flood of 
+#   data for every single gate (G0 through G8) into Home Assistant.
+# WARNING: ONLY turn this on when actively tuning. Turn it off immediately after,
+#   or your Home Assistant database will explode with thousands of updates a minute.
+#
+# G0 through G8 Move & Still Thresholds (0 - 100%)
+# DEFINITION: These are your noise filters. Think of them as a "Must be THIS
+#   tall to ride" sign for energy. If the energy in Gate 3 is 40%, but the 
+#   Threshold is set to 50%, the radar ignores it.
+#
+# THE ULTIMATE TUNING PROCESS ("TRAINING" THE SENSOR):
+#   1. Turn ON Engineering Mode.
+#   2. Leave the room and close the door (or stay perfectly still in the corner).
+#   3. Turn on the ceiling fan, the AC, or whatever causes "ghost" triggers.
+#   4. Look at the G0-G8 Energy sensors in Home Assistant (or the phone app).
+#   5. Find the gate that is making noise. For example, if "G3 Move Energy" 
+#      is bouncing between 20% and 30% because of the fan...
+#   6. Set the "G3 Move Threshold" slider to 35% (just above the noise floor).
+#   7. Repeat for Still Energy.
+#   8. Walk around the room to ensure your human energy (usually 80-100%) still
+#      easily beats the threshold. 
+#   9. Turn OFF Engineering Mode. You just perfectly trained your room.
+
+# ------------------------------------------------------------------------------
+# 🔘 SECTION 6: UTILITY BUTTONS
+# ------------------------------------------------------------------------------
+#
+# Factory Reset (Button)
+# DEFINITION: Wipes all your custom G0-G8 thresholds, gates, and timeouts, 
+#   returning the board to factory defaults.
+#
+# Play Random Song (Button)
+# DEFINITION: This is a custom Home Assistant script or ESPHome buzzer action
+#
