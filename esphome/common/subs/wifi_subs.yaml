@@ -1,0 +1,7 @@
+
+wifipass: "xxxxxxx"
+wifi: xxxx
+subnet: 255.255.0.0
+gateway: xxx.xxx.xxxx.xxxx
+dns1: xxx.xxx.xxx.xxx
+dns2: xxx.xxx.xxx.xxx

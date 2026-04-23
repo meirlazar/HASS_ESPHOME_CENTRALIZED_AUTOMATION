@@ -1,0 +1,71 @@
+
+# LEFT SIDE - DESCENDING                                # RIGHT SIDE - DESCENDING
+
+PIN1: '3.3v' # DOES NOT SHOW ON BREAKOUT BOARD              PIN38: 'GND'
+PIN2: 'RESET' # -- EN - ONBOARD LED                         PIN37: GPIO23 # VSPI MOSI -- P23
+PIN3: GPIO36 # ADC0     -- SVP                              PIN36: GPIO22 # I2C SCL   -- P22 
+PIN4: GPIO39 # ADC3     -- SVN                              PIN35: GPIO1 # TX0        -- TX
+PIN5: GPIO34 # ADC6     -- P34                              PIN34: GPIO3 # RX0        -- RX 
+PIN6: GPIO35 # ADC7     -- P35                              PIN33: GPIO21 # I2C SDA  -- P21
+PIN7: GPIO32 # ADC4 TOUCH9   -- P32                         PIN32: 'GND' 
+PIN8: GPIO33 # ADC5 TOUCH 8  -- P33                         PIN31: GPIO19 # VSPI MISO -- P19
+PIN9: GPIO25 # ADC18 DAC1    -- P25                         PIN30: GPIO18 # VSPI SCK  -- P18
+PIN10: GPIO26 # ADC19 DAC2   -- P26                         PIN29: GPIO5 # VSPI SS    -- P5
+PIN11: GPIO27 # ADC17 TOUCH7 -- P27                         PIN28: GPIO17 # TX2       -- P17
+PIN12: GPIO14 # ADC16 TOUCH6 -- P14                         PIN27: GPIO16 # RX2       -- P16
+PIN13: GPIO12 # ADC15 TOUCH5 -- P12 # DO NOT USE            PIN26: GPIO4 # ADC TOUCH0 -- P4
+PIN14: 'GND' #                                              PIN25: GPIO0 # ADC TOUCH1 -- P0 # DO NOT USE
+PIN15: GPIO13 # ADC14 TOUCH4 -- P13                         PIN24: GPIO2 # ADC TOUCH2 -- P2 # DO NOT USE
+PIN16: GPIO9 # RX1 FLASH D2 -- SD2  # DO NOT USE            PIN23: GPIO15 # ADC13 TOUCH3 -- P15 # DO NOT USE
+PIN17: GPIO10 # TX1 FLASH D3 -- SD3 # DO NOT USE            PIN22: GPIO8 # FLASH D1 -- SD1
+PIN18: GPIO11 # FLASH CMD P11 -- CMD                        PIN21: GPIO7 # FLASH D0 -- SD0
+PIN19: '5V'                                                 PIN20: GPIO6 # FLASH CK -- CLK
+
+
+
+# LEFT SIDE - DESCENDING                                # RIGHT SIDE - DESCENDING
+
+PIN1: '3.3v' # DOES NOT SHOW ON BREAKOUT BOARD              PIN38: 'GND'
+PIN2: 'RESET' # -- EN - ONBOARD LED                         PIN37: GPIO23 # VSPI MOSI -- P23
+PIN3: GPIO36 # ADC0     -- SVP                              PIN36: GPIO22 # I2C SCL   -- P22 
+PIN4: GPIO39 # ADC3     -- SVN                              PIN35: GPIO1 # TX0        -- TX
+PIN5: GPIO34 # ADC6     -- P34                              PIN34: GPIO3 # RX0        -- RX 
+PIN6: GPIO35 # ADC7     -- P35                              PIN33: GPIO21 # I2C SDA  -- P21
+PIN7: GPIO32 # ADC4 TOUCH9   -- P32                         PIN32: 'GND' 
+PIN8: GPIO33 # ADC5 TOUCH 8  -- P33                         PIN31: GPIO19 # VSPI MISO -- P19
+PIN9: GPIO25 # ADC18 DAC1    -- P25                         PIN30: GPIO18 # VSPI SCK  -- P18
+PIN10: GPIO26 # ADC19 DAC2   -- P26                         PIN29: GPIO5 # VSPI SS    -- P5
+PIN11: GPIO27 # ADC17 TOUCH7 -- P27                         PIN28: GPIO17 # TX2       -- P17
+PIN12: GPIO14 # ADC16 TOUCH6 -- P14                         PIN27: GPIO16 # RX2       -- P16
+PIN13: GPIO12 # ADC15 TOUCH5 -- P12 # DO NOT USE            PIN26: GPIO4 # ADC TOUCH0 -- P4
+PIN14: 'GND' #                                              PIN25: GPIO0 # ADC TOUCH1 -- P0 # DO NOT USE
+PIN15: GPIO13 # ADC14 TOUCH4 -- P13                         PIN24: GPIO2 # ADC TOUCH2 -- P2 # DO NOT USE
+PIN16: GPIO9 # RX1 FLASH D2 -- SD2  # DO NOT USE            PIN23: GPIO15 # ADC13 TOUCH3 -- P15 # DO NOT USE
+PIN17: GPIO10 # TX1 FLASH D3 -- SD3 # DO NOT USE            PIN22: GPIO8 # FLASH D1 -- SD1
+PIN18: GPIO11 # FLASH CMD P11 -- CMD                        PIN21: GPIO7 # FLASH D0 -- SD0
+PIN19: '5V'                                                 PIN20: GPIO6 # FLASH CK -- CLK
+
+
+
+
+# LEFT SIDE - DESCENDING                                # RIGHT SIDE - DESCENDING
+
+PIN1: '3.3v' # DOES NOT SHOW ON BREAKOUT BOARD              PIN38: 'GND'
+PIN2: 'RESET' # -- EN - ONBOARD LED                         PIN37: GPIO23 # VSPI MOSI -- P23
+PIN3: GPIO36 # ADC0     -- SVP                              PIN36: GPIO22 # I2C SCL   -- P22 
+PIN4: GPIO39 # ADC3     -- SVN                              PIN35: GPIO1 # TX0        -- TX
+PIN5: GPIO34 # ADC6     -- P34                              PIN34: GPIO3 # RX0        -- RX 
+PIN6: GPIO35 # ADC7     -- P35                              PIN33: GPIO21 # I2C SDA  -- P21
+PIN7: GPIO32 # ADC4 TOUCH9   -- P32                         PIN32: 'GND' 
+PIN8: GPIO33 # ADC5 TOUCH 8  -- P33                         PIN31: GPIO19 # VSPI MISO -- P19
+PIN9: GPIO25 # ADC18 DAC1    -- P25                         PIN30: GPIO18 # VSPI SCK  -- P18
+PIN10: GPIO26 # ADC19 DAC2   -- P26                         PIN29: GPIO5 # VSPI SS    -- P5
+PIN11: GPIO27 # ADC17 TOUCH7 -- P27                         PIN28: GPIO17 # TX2       -- P17
+PIN12: GPIO14 # ADC16 TOUCH6 -- P14                         PIN27: GPIO16 # RX2       -- P16
+PIN13: GPIO12 # ADC15 TOUCH5 -- P12 # DO NOT USE            PIN26: GPIO4 # ADC TOUCH0 -- P4
+PIN14: 'GND' #                                              PIN25: GPIO0 # ADC TOUCH1 -- P0 # DO NOT USE
+PIN15: GPIO13 # ADC14 TOUCH4 -- P13                         PIN24: GPIO2 # ADC TOUCH2 -- P2 # DO NOT USE
+PIN16: GPIO9 # RX1 FLASH D2 -- SD2  # DO NOT USE            PIN23: GPIO15 # ADC13 TOUCH3 -- P15 # DO NOT USE
+PIN17: GPIO10 # TX1 FLASH D3 -- SD3 # DO NOT USE            PIN22: GPIO8 # FLASH D1 -- SD1
+PIN18: GPIO11 # FLASH CMD P11 -- CMD                        PIN21: GPIO7 # FLASH D0 -- SD0
+PIN19: '5V'                                                 PIN20: GPIO6 # FLASH CK -- CLK

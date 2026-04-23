@@ -1,0 +1,19 @@
+  # PIN: GPIO # AS INPUT / AS OUTPUT /  NOTES OR PRECAUTIONS
+D0: GPIO16 # No Interrupt /	Non- PWM or I2C / HIGH during boot, used to wake up from deep sleep mode, HI AT BOOT
+D1: GPIO5 # OK / OK / Usually used as SCL
+D2: GPIO4  # OK / OK / Usually used as SDA
+D3: GPIO0 # Pulled up / OK / Directly connected to the Flash button, boot will fail if pulled LOW
+D4: GPIO2 # Pulled up / OK / HIGH during boot, connected to the onboard LED, boot will fail if pulled LOW
+D5: GPIO14 # OK / OK / SPI (SCLK)
+D6: GPIO12 # OK / OK / SPI (MISO)
+D7: GPIO13 # OK / OK / SPI (MOSI)
+D8: GPIO15 # Pulled to GND / OK / SPI (CS), boot fails if pulled HIGH
+RX0: GPIO3 # OK / RX  pin / HIGH during boot - USE THIS PIN FOR SONIC ECHO PIN
+TX0: GPIO1 # TX pin / OK /HIGH during boot, debug output at boot, boot will fail if pulled LOW - USE THIS PIN FOR SONIC TRIGGER PIN
+SDD3: GPIO10
+SDD2: GPIO9
+SDD1: GPIO8
+CMD: GPIO11
+SDD0: GPIO7
+CLK: GPIO6
+

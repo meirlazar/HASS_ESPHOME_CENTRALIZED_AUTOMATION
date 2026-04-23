@@ -1,0 +1,172 @@
+# ESP32-WROOM-DEV32D PINOUT
+# ESP-WROOM-32 38 PIN CP2102 USB-C ARDUINO - HAS NO PINS SHOWN O N FRONT
+
+# DAC = DIGITAL TO ANALOG CONVERTER - USE FOR GENERATING ANALOG OUTPUT SIGNALS LIKE AUDIO OUTPUTS
+# ADC = Analog to Digital Converter - USE FOR ANALOG SIGNAL INPUTS
+# TOUCH = Built-in capacitive touch sensor pin, wessentially acting as a virtual button by sensing changes in capacitance when touched; it's a built-in feature that utilizes specific GPIO pins dedicated to touch sensing
+# FLASH = PINS to read and write code and data; it's crucial not to use these pins for other purposes
+# I2C =  PINS used to send/receive data between the ESP32 and other devices like sensors, displays, or other microcontrollers using the I2C protocol
+# CLK = PIN refers to a "Clock" pin, which is a dedicated GPIO pin used to send a clock signal to another device, essentially acting as the timing reference for data transmission in communication protocols 
+# CMD = PIN designated as the "Command" pin when interfacing with a specific peripheral, most commonly in SPI communication
+# VSPI = PINS used to send/receive data using the SPI protocol to external devices like sensors or displays.
+# MISO = PIN stands for "Master In Slave Out," used in the Serial Peripheral Interface (SPI) communication protocol, slave sends data to the master on the MISO pin. 
+# TX = PIN for Transmission, meaning it is used to send data out
+# RX = PIN for Receiving data from a sensor or device
+# SS = PIN "Slave Select", for selecting a specific device on a SPI (Serial Peripheral Interface) bus when communicating with multiple peripherals simultaneously; acting as a chip select signal to identify which device on the bus should be addressed during data transfer
+
+#####################################################################################################################################################################################
+# FIRST LIST IS BY ACTUAL PINS ON ARDUINO, THERE IS NO LETTERS ON BOARD  esp-wroom-32
+### LEFT SIDE - DESCENDING
+
+
+PIN1: '3.3v' # DOES NOT SHOW ON BREAKOUT BOARD
+PIN2: 'RESET' # -- EN 
+PIN3: GPIO36 # ADC0           -- SVP
+PIN4: GPIO39 # ADC3            -- SVN 
+PIN5: GPIO34 # ADC6          -- P34
+PIN6: GPIO35 # ADC7          -- P35
+PIN7: GPIO32 # ADC4 TOUCH9     -- P32
+PIN8: GPIO33 # ADC5 TOUCH 8     -- P33
+PIN9: GPIO25 # ADC18 DAC1      -- P25 
+PIN10: GPIO26 # ADC19 DAC2    -- P26
+PIN11: GPIO27 # ADC17 TOUCH7 -- P27
+PIN12: GPIO14 # ADC16 TOUCH6 -- P14
+PIN13: GPIO12 # ADC15 TOUCH5 -- P12 # DO NOT USE
+PIN14: 'GND' # 
+PIN15: GPIO13 # ADC14 TOUCH4 -- P13
+PIN16: GPIO9 # RX1 FLASH D2 -- SD2  # DO NOT USE
+PIN17: GPIO10 # TX1 FLASH D3 -- SD3 # DO NOT USE
+PIN18: GPIO11 # FLASH CMD P11 -- CMD
+PIN19: '5V' 
+
+
+## RIGHT SIDE - DESCENDING
+
+
+PIN38: 'GND'
+PIN37: GPIO23 # VSPI MOSI -- P23
+PIN36: GPIO22 # I2C SCL   -- P22 
+PIN35: GPIO1 # TX0        -- TX TRIGGER
+PIN34: GPIO3 # RX0        -- RX ECHO
+PIN33: GPIO21 # I2C SDA  -- P21
+PIN32: 'GND' 
+PIN31: GPIO19 # VSPI MISO -- P19
+PIN30: GPIO18 # VSPI SCK  -- P18
+PIN29: GPIO5 # VSPI SS    -- P5
+PIN28: GPIO17 # TX2       -- P17
+PIN27: GPIO16 # RX2       -- P16
+PIN26: GPIO4 # ADC TOUCH0 -- P4
+PIN25: GPIO0 # ADC TOUCH1 -- P0 # DO NOT USE
+PIN24: GPIO2 # ADC TOUCH2 -- P2 # DO NOT USE
+PIN23: GPIO15 # ADC13 TOUCH3 -- P15 # DO NOT USE
+PIN22: GPIO8 # FLASH D1 -- SD1
+PIN21: GPIO7 # FLASH D0 -- SD0
+PIN20: GPIO6 # FLASH CK -- CLK
+
+###################################################################################
+
+
+
+# BY BREAKOUT BOARD NAMING CONVENTION
+
+# P0: GPIO0 # ADC TOUCH1 - DO NOT USE -  Must be HIGH to boot, LOW for flashing. Best for: Button, pull-up sensor.
+# P0: GPIO0 # ADC TOUCH1 - DO NOT USE - USE WITH Pushbuttons, motion sensors (PIR), reed switches
+# P1: GPIO1 # TX0 -- FOR ULTRASONIC SENSOR TRIGGER
+# P2: GPIO2 # ADC TOUCH2 - DO NOT USE - Connected to onboard LED. - USE WITH light sensors, Pushbuttons, motion sensors (PIR), reed switches
+# P3: GPIO3 # RX0 -- FOR ULTRASONIC SENSOR ECHO
+# P4: GPIO4 # ADC TOUCH0
+# P5: GPIO5 # VSPI SS - Avoid if possible, or use for output
+# P6: GPIO6 # FLASH CK
+# P7: GPIO7 # FLASH D0
+# P8: GPIO8 # FLASH D1
+# P9: GPIO9 # RX1 FLASH D2
+# P10: GPIO10 # TX1 FLASH D3
+# P11: GPIO11 # FLASH CMD
+# P12: GPIO12 # ADC15 TOUCH5  - DO NOT USE - Must NOT be high at boot or it fails
+# P13: GPIO13 # ADC14 TOUCH4
+# P14: GPIO14 # ADC16 TOUCH6
+# P15: GPIO15 # ADC13 TOUCH3 - DO NOT USE - USE WITH Pushbuttons, light sensors, motion sensors (PIR), reed switches
+# P16: GPIO16 # RX2
+# P17: GPIO17 # TX2
+# P18: GPIO18 # VSPI SCK
+# P19: GPIO19 # VSPI MISO
+# P21: GPIO21 # I2C SDA -- FOR TEMP SENSOR
+# P22: GPIO22 # I2C SCL --- FOR TEMP SENSOR
+# P23: GPIO23 # VSPI MOSI
+# P25: GPIO25 # ADC18 DAC1
+# P26: GPIO26 # ADC19 DAC2 # do not use
+# P27: GPIO27 # ADC17 TOUCH7
+# P32: GPIO32 # ADC4 TOUCH9
+# P33: GPIO33 # ADC5 TOUCH 8 - NO OUTPUT SENSORS
+# P34: GPIO34 # ADC6 - NO OUTPUT SENSORS
+# P35: GPIO35 # ADC7 - NO OUTPUT SENSORS 
+# P36: GPIO36 # ADC0 - NO OUTPUT SENSORS
+# P39: GPIO39 # ADC3 - NO OUTPUT SENSORS
+
+# SHORTCUTS
+
+
+RX0: GPIO3 #   RPIN34  G3   P3  D3  PIN34  
+TX0: GPIO1 #   RPIN35  G1   P1  D1  PIN35
+RX1: GPIO9 #   LPIN16  G9   P9  D9  PIN16
+TX1: GPIO10 #  LPIN17  G10  P10 D10 PIN17
+RX2: GPIO16 #  RPIN27  G16  P16 D16 PIN27
+TX2: GPIO17 #  RPIN28  G17  P17 D17 PIN28
+SDA: GPIO21 #  RPIN33  G21  P21 D21 PIN33
+SCL: GPIO22 #  RPIN36  G22  P22 D22 PIN36
+
+
+SD2: GPIO9 # RX1 - DO NOT USE
+SD3: GPIO10 # TX1 - DO NOT USE
+
+#############################################
+#############################################
+
+############ BY BREAKOUT BOARD P CONVENTION ######
+# ON esp32-WROOM 
+
+# LEFT SIDE - DESCENDING
+
+# P1: '3.3v' # DOES NOT SHOW ON BREAKOUT BOARD
+# P2: 'RESET' # -- EN 
+P36: GPIO36 # ADC0-- SVP  = NO PULLUP - NO PULLDOWN - INPUT ONLY
+P39: GPIO39 # ADC3 -- SVN  = NO PULLUP - NO PULLDOWN- INPUT ONLY
+P34: GPIO34 # ADC6  = NO PULLUP - NO PULLDOWN- INPUT ONLY
+P35: GPIO35 # ADC7  - NO PULLUP - NO PULLDOWN- INPUT ONLY
+P32: GPIO32 # ADC4 TOUCH9     -- P32
+P33: GPIO33 # ADC5 TOUCH 8     -- P33
+P25: GPIO25 # ADC18 DAC1      -- P25 
+P26: GPIO26 # ADC19 DAC2    -- P26
+P27: GPIO27 # ADC17 TOUCH7 -- P27
+P14: GPIO14 # ADC16 TOUCH6 -- P14
+P12: GPIO12 # ADC15 TOUCH5 -- P12 # DO NOT USE - STRAPPING PIN = NO PULLUP - NO PULLDOWN
+# P14: 'GND' # 
+P13: GPIO13 # ADC14 TOUCH4 -- P13
+P9: GPIO9 # RX1 FLASH D2 -- SD2  # DO NOT USE
+P10: GPIO10 # TX1 FLASH D3 -- SD3 - DO NOT USE
+P11: GPIO11 # FLASH CMD P11 -- CMD - DO NOT USE
+# P19: '5V' 
+
+############## RIGHT SIDE - DESCENDING ##############
+
+# GND: GND
+P23: GPIO23 # VSPI MOSI -- P23
+P22: GPIO22 # I2C SCL   -- P22 
+P1: GPIO1 # TX0        -- TX TRIGGER
+P3: GPIO3 # RX0        -- RX ECHO
+P21: GPIO21 # I2C SDA  -- P21
+# P32: 'GND' 
+P19: GPIO19 # VSPI MISO -- P19
+P18: GPIO18 # VSPI SCK  -- P18
+P5: GPIO5 # VSPI SS    -- P5- STRAPPING PIN = NO PULLUP - NO PULLDOWN
+P17: GPIO17 # TX2       -- P17 - DO NOT USE
+P16: GPIO16 # RX2       -- P16 - DO NOT USE
+P4: GPIO4 # ADC TOUCH0 -- P4
+P0: GPIO0 # ADC TOUCH1 -- P0 # DO NOT USE - STRAPPING PIN = NO PULLUP - NO PULLDOWN
+P2: GPIO2 # ADC TOUCH2 -- P2 # DO NOT USE - STRAPPING PIN = NO PULLUP - NO PULLDOWN
+P15: GPIO15 # ADC13 TOUCH3 -- P15 # DO NOT USE - STRAPPING PIN = NO PULLUP - NO PULLDOWN
+P8: GPIO8 # FLASH D1 -- SD1 - DO NOT USE
+P7: GPIO7 # FLASH D0 -- SD0 - DO NOT USE
+P6: GPIO6 # FLASH CK -- CLK - DO NOT USE
+
+############################################################
