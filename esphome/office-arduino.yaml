@@ -1,0 +1,91 @@
+# ======================================================================
+# FILE: office-arduino.yaml
+# ======================================================================
+# ---------------------------------------------------------
+# SUBSTITUTIONS & HARDWARE MAPPING
+# ---------------------------------------------------------
+substitutions:
+
+  <<: !include common/subs/byroom/office.yaml
+  <<: !include common/subs/esp-wroom-32_38pin.yaml
+  <<: !include common/subs/wifi_subs.yaml
+
+esphome: !include common/esphome/esphome_esp32.yaml
+esp32: !include common/esp32_8266/esp32_arduino.yaml
+
+captive_portal: 
+
+# ---------------------------------------------------------
+# PACKAGES (Bundled Features & Template Sensors)
+# ---------------------------------------------------------
+packages:
+
+  # --- 1. Your Bundled Features ---
+  # Assigning them names is the correct way to include them in ESPHome
+  arduino_base: !include common/packages/arduino_base/full_base.yaml
+  occupancy: !include common/packages/occupancy/ld2410c.yaml
+  weather_station: !include common/packages/weather_stations/aht_bmp280.yaml
+  buzzer_passive: !include common/packages/buzzer/passive.yaml
+  buzzer_active: !include common/packages/buzzer/active.yaml
+  lights_array: !include common/packages/lights/led_array.yaml
+  
+
+
+
+  # --- 2. Your Binary Sensors ---
+  # Calling your custom template for every pin defined above
+  
+# --- 2. Binary Sensors (Using templates & vars) ---
+  office_main_vibration: !include
+    file: common/packages/templates/binary_sensor.yaml
+    vars:
+      bname: "main"
+      class: vibration
+      pin: "${vibrate}"
+      mode: "INPUT"
+
+
+  office_window: !include
+    file: common/packages/templates/binary_sensor.yaml
+    vars:
+      bname: "left"
+      class: window
+      pin: "${window}"
+      mode: "INPUT_PULLUP"
+
+  office_door_exterior: !include
+    file: common/packages/templates/binary_sensor.yaml
+    vars:
+      bname: "exterior"
+      class: door
+      pin: "${ext_door}"
+      mode: "INPUT_PULLUP"
+
+
+  office_sound: !include
+    file: common/packages/templates/binary_sensor.yaml
+    vars:
+      bname: "main"
+      class: sound
+      pin: "${dsound}"
+      mode: "INPUT"
+
+  office_light: !include
+    file: common/packages/templates/binary_sensor.yaml
+    vars:
+      bname: "main"
+      class: light
+      pin: "${light}"
+      mode: "INPUT"
+
+  office_fence: !include
+    file: common/packages/templates/binary_sensor.yaml
+    vars:
+      bname: "fence"
+      class: door
+      pin: "${fence}"
+      mode: "INPUT_PULLUP"
+
+
+
+

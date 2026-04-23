@@ -1,0 +1,90 @@
+
+# ======================================================================
+# FILE: laundry-arduino.yaml
+# ======================================================================
+# ---------------------------------------------------------
+# SUBSTITUTIONS & HARDWARE MAPPING
+# ---------------------------------------------------------
+substitutions:
+
+  <<: !include common/subs/byroom/laundry.yaml
+
+esphome: !include common/esphome/esphome_8266.yaml
+esp32: !include common/esp32_8266/esp32-devkit1_38pin.yaml
+captive_portal: 
+
+# ---------------------------------------------------------
+# PACKAGES (Bundled Features & Template Sensors)
+# ---------------------------------------------------------
+packages:
+
+  # --- 1. Your Bundled Features ---
+  # Assigning them names is the correct way to include them in ESPHome
+  arduino_base: !include common/packages/arduino_base/full_base.yaml
+  occupancy: !include common/packages/occupancy/ld2410c_int.yaml
+  weather_station: !include common/packages/weather_stations/shtc3.yaml
+  buzzer_passive: !include common/packages/buzzer/passive.yaml
+  buzzer_active: !include common/packages/buzzer/active.yaml
+  
+
+
+
+  # --- 2. Your Binary Sensors ---
+  # Calling your custom template for every pin defined above
+  
+# --- 2. Binary Sensors (Using templates & vars) ---
+
+  laundry_sound: !include
+    file: common/packages/templates/binary_sensor.yaml
+    vars:
+      bname: "main"
+      class: sound
+      pin: "${dsound}"
+      mode: "INPUT"
+
+  laundry_motion: !include
+    file: common/packages/templates/binary_sensor.yaml
+    vars:
+      bname: "ld1020"
+      class: motion
+      pin: "${rwcl0516_motion1}"
+      mode: "INPUT"
+
+  laundry_washer: !include
+    file: common/packages/templates/binary_sensor.yaml
+    vars:
+      bname: "washer"
+      class: vibration
+      pin: "${washer}"
+      mode: "INPUT"
+
+  laundry_dryer: !include
+    file: common/packages/templates/binary_sensor.yaml
+    vars:
+      bname: "dryer"
+      class: vibration
+      pin: "${dryer}"
+      mode: "INPUT"
+
+  laundry_light: !include
+    file: common/packages/templates/binary_sensor.yaml
+    vars:
+      bname: "main"
+      class: light
+      pin: "${light}"
+      mode: "INPUT"
+
+  laundry_water: !include
+    file: common/packages/templates/binary_sensor.yaml
+    vars:
+      bname: "water"
+      class: moisture
+      pin: "${water}"
+      mode: "INPUT"
+
+
+
+
+
+
+

@@ -1,0 +1,87 @@
+# ======================================================================
+# FILE: living-arduino.yaml
+# ======================================================================
+# ---------------------------------------------------------
+# SUBSTITUTIONS & HARDWARE MAPPING
+# ---------------------------------------------------------
+substitutions:
+
+  <<: !include common/subs/byroom/living.yaml
+  <<: !include common/subs/esp-wroom-32_38pin.yaml
+  <<: !include common/subs/wifi_subs.yaml
+
+esphome: !include common/esphome/esphome_esp32.yaml
+esp32: !include common/esp32_8266/esp32_orig.yaml
+
+captive_portal: 
+
+# ---------------------------------------------------------
+# PACKAGES (Bundled Features & Template Sensors)
+# ---------------------------------------------------------
+packages:
+
+  # --- 1. Your Bundled Features ---
+  # Assigning them names is the correct way to include them in ESPHome
+  arduino_base: !include common/packages/arduino_base/full_base.yaml
+  occupancy: !include common/packages/occupancy/ld2410c_int.yaml
+  weather_station: !include common/packages/weather_stations/aht_bmp280.yaml
+  buzzer_passive: !include common/packages/buzzer/passive.yaml
+  buzzer_active: !include common/packages/buzzer/active.yaml
+  lights_array: !include common/packages/lights/led_array.yaml
+  ultrasonic: !include common/packages/templates/sonic.yaml
+  
+
+
+
+  # --- 2. Your Binary Sensors ---
+  # Calling your custom template for every pin defined above
+  
+# --- 2. Binary Sensors (Using templates & vars) ---
+  living_main_vibration: !include
+    file: common/packages/templates/binary_sensor.yaml
+    vars:
+      bname: "main"
+      class: vibration
+      pin: "${vibrate}"
+      mode: "INPUT"
+
+  living_window_bay: !include
+    file: common/packages/templates/binary_sensor.yaml
+    vars:
+      bname: "bay"
+      class: window
+      pin: "${window}"
+      mode: "INPUT_PULLUP"
+
+  living_door_exterior: !include
+    file: common/packages/templates/binary_sensor.yaml
+    vars:
+      bname: "exterior"
+      class: door
+      pin: "${ext_door}"
+      mode: "INPUT_PULLUP"
+
+
+  living_pir_motion_pir: !include
+    file: common/packages/templates/binary_sensor.yaml
+    vars:
+      bname: "pir"
+      class: motion
+      pin: "${pir1}"
+      mode: "INPUT"
+
+  living_light: !include
+    file: common/packages/templates/binary_sensor.yaml
+    vars:
+      bname: "main"
+      class: light
+      pin: "${light}"
+      mode: "INPUT"
+
+  living_sound: !include
+    file: common/packages/templates/binary_sensor.yaml
+    vars:
+      bname: "main"
+      class: sound
+      pin: "${dsound}"
+      mode: "INPUT"
