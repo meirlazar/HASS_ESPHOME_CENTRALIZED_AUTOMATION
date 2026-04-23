@@ -1,0 +1,36 @@
+# File: common/packages/gotify_alert.yaml
+# ==============================================================================
+# 🚀 CORE ENGINE: THE GOTIFY CONNECTION
+# ==============================================================================
+substitutions:
+  # Replace with your actual Gotify IP/Port and App Token
+  gotify_url: "http://xxx.xxx.xxx.xxx:80" 
+  gotify_token: "YOUR_APP_TOKEN_HERE"      
+
+# 1. Enable the ESP32 to make web requests
+http_request:
+  verify_ssl: false # Keeps it fast and prevents errors with local network IPs
+  timeout: 5s
+
+# 2. The reusable notification script
+script:
+  - id: send_gotify_alert
+    mode: parallel # Allows multiple alerts to fire at once without crashing
+    parameters:
+      title: string
+      message: string
+      priority: int
+    then:
+      - logger.log:
+          level: INFO
+          format: "GOTIFY: Sending alert -> %s"
+          args: [ 'title.c_str()' ]
+      - http_request.post:
+          url: "${gotify_url}/message?token=${gotify_token}"
+          headers:
+            Content-Type: "application/json"
+          # Dynamically builds the JSON payload. DO NOT use double quotes (") in your messages!
+          body: !lambda |-
+            std::string payload = "{\"title\":\"" + title + "\", \"message\":\"" + message + "\", \"priority\":" + std::to_string(priority) + "}";
+            return payload;
+
