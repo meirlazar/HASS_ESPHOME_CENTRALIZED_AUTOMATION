@@ -1,0 +1,114 @@
+
+homeassistant:
+  name: HOME
+  latitude: 22.2222222
+  longitude: -11.111111
+  elevation: 161
+  time_zone: "America/New_York"
+  unit_system: us_customary
+  currency: USD
+  country: US
+  internal_url: "https://hass.xxxx.xx"
+  external_url: "xxxxxxxxx"
+  allowlist_external_dirs:
+    - "/tmp"
+    - "/config"
+  # change entity info based on wildcard
+  customize: !include customize.yaml
+  customize_glob: !include customize_glob.yaml
+  packages: !include_dir_named packages
+
+  ###############################################
+
+
+shell_command: !include shell.yaml
+command_line: !include command_line.yaml
+influxdb:
+
+# lovelace_gen:
+lovelace:
+  mode: storage
+
+template: !include templates.yaml
+system_health:
+logger: !include logger.yaml
+tcl_tv_remote:
+# Loads default set of integrations. Do not remove.
+default_config:
+
+# Load frontend themes from the themes folder
+frontend: 
+  themes: !include_dir_merge_named themes
+  extra_module_url: 
+    - hass-bha-icons.js
+    - /local/community/custom-brand-icons/custom-brand-icons.js
+    - /local/card-mod.js
+# Enables configuration UI
+cloud: 
+config:
+alexa:
+  smart_home:
+geofency:
+automation: !include automations.yaml
+scene: !include_dir_merge_named scenes
+sensor: !include_dir_merge_list sensors
+binary_sensor: !include binary_sensors.yaml
+switch: !include switches.yaml
+fan:
+script: !include scripts.yaml
+device_tracker: !include device_trackers.yaml
+notify: !include notify.yaml
+api: 
+rest_command: !include rest_commands.yaml    
+light: !include lights.yaml
+my:
+energy:
+hassio:
+ios:
+sun:
+person:
+ffmpeg:
+  ffmpeg_bin: /usr/bin/ffmpeg
+media_player:
+mobile_app:
+recorder:
+  auto_purge: true
+  auto_repack: true
+  purge_keep_days: 10
+  commit_interval: 30
+  exclude:
+    domains:
+      - device_tracker
+      - adguard
+      - sun
+      - moon
+      - mqtt
+      - calendar
+      - frontend
+    entities:
+      - sensor.date
+      - sun.sun
+      - moon.moon
+    event_types:
+      - call_service
+    entity_globs:
+      - sensor.sun*
+      - sensor.adguard*
+      - binary_sensor.influxdb*
+      - binary_sensor.jewish_calendar*
+      - sensor.helper*
+      - binary_sensor.helper*
+      - sensor.date*  
+      - sensor.time*
+      - binary_sensor.random*
+      - sensor.*wifi_level
+#  include: !include entity_tracking.yaml
+geo_location:
+history:
+#  include: !include entity_tracking.yaml
+wake_on_lan:
+# Allows you to issue voice commands from the frontend in enabled browsers
+conversation:
+tts: !include tts.yaml
+http: !include http.yaml
+input_datetime: !include date_time.yaml
