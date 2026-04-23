@@ -1,0 +1,422 @@
+globals:
+- id: pressure_slope_3h
+  type: float
+  restore_value: no
+  initial_value: '0.0'
+  
+i2c:
+  sda: ${sda}
+  scl: ${scl}
+  scan: true
+  id: bus_a
+  frequency: 100kHz
+
+sensor:
+  - platform: bme280_i2c
+    address: 0x76            # change to 0x77 if your module uses that address
+    update_interval: 5s
+    iir_filter: 16x
+
+    temperature:
+      name: "temperature_celsius"
+      id: temperature_celsius
+      oversampling: 16x
+      device_class: temperature
+      state_class: measurement
+      unit_of_measurement: "°C"
+      accuracy_decimals: 2
+      icon: "mdi:temperature-celsius"
+      filters:
+        - filter_out: nan
+        - sliding_window_moving_average:
+            window_size: 5
+            send_every: 5
+
+    pressure:
+      name: "pressure_hPa"
+      id: pressure_hPa
+      oversampling: 16x
+      unit_of_measurement: "hPa"
+      accuracy_decimals: 2
+      device_class: atmospheric_pressure
+      state_class: measurement
+      icon: "mdi:gauge"
+      filters:
+        - filter_out: nan
+        - median:
+            window_size: 5
+            send_every: 5
+            send_first_at: 1
+
+    humidity:
+      name: "humidity"
+      id: humidity
+      oversampling: 16x
+      filters:
+        - filter_out: nan
+        - heartbeat: 10s
+        - sliding_window_moving_average:
+            window_size: 5
+            send_every: 5
+        - or:
+            - throttle: 10s
+            - delta: 0.2
+      accuracy_decimals: 2
+      unit_of_measurement: "%"
+      device_class: humidity
+      state_class: measurement
+      icon: "mdi:water-percent"
+
+################  HUMIDITY TEMPLATES #############
+
+  - platform: absolute_humidity
+    name: "Actual Water Vapor In The Air"
+    equation: Buck
+    temperature: temperature_celsius
+    humidity: humidity
+    accuracy_decimals: 2
+    unit_of_measurement: '%'
+    device_class: "humidity"
+    state_class: "measurement"
+    icon: "mdi:water-percent"
+    
+    
+################  TEMP TEMPLATES #############
+
+  - platform: copy 
+    source_id: "temperature_celsius"
+    name: "temperature_kelvin"
+    id: temperature_kelvin
+    accuracy_decimals: 2
+    unit_of_measurement: 'K'
+    state_class: "measurement"
+    device_class: "temperature"
+    icon: "mdi:temperature-kelvin"
+    filters:
+      - filter_out: NAN
+    #  - multiply: 1.8
+    #  - offset: +32
+    #  - lambda: return x;
+      - lambda: return x + 273.15;
+    
+  - platform: copy 
+    source_id: "temperature_celsius"
+    name: "temperature_fahrenheit"
+    id: temperature_fahrenheit
+    accuracy_decimals: 2
+    unit_of_measurement: '°F'
+    state_class: "measurement"
+    device_class: "temperature"
+    icon: "mdi:temperature-fahrenheit"
+    filters:
+      - filter_out: NAN
+      - lambda: return x * (9.0/5.0) + 32.0;
+    
+  - platform: template
+    name: "Heat Index"
+    id: "heat_index"
+    device_class: temperature
+    accuracy_decimals: 2
+    state_class: measurement
+    unit_of_measurement: '°F'
+    icon: "mdi:heat-wave"
+    update_interval: 10s
+    
+    lambda:
+      float temp = float(id(temperature_fahrenheit).state);
+      float humid = float(id(humidity).state);
+      float x;
+        if (! id(temperature_fahrenheit).state){ float temp = float(id(temperature_celsius).state) * (9/5) + 32; }
+        if (temp < 112 and temp > 80 and humid < 13){
+           x = -42.379 + (2.04901523*temp) + (10.14333127*humid) - (0.22475541*temp*humid) - (0.00683783*temp*temp) - (0.05481717*humid*humid) + (0.00122874*temp*temp*humid) + (0.00085282*temp*humid*humid) - (0.00000199*temp*temp*humid*humid)-((13-humid)/4)*sqrt((17-((temp-95)))/17);
+        } else if (temp < 87 and temp > 80 and humid > 85){
+           x = -42.379 + (2.04901523*temp) + (10.14333127*humid) - (0.22475541*temp*humid) - (0.00683783*temp*temp) - (0.05481717*humid*humid) + (0.00122874*temp*temp*humid) + (0.00085282*temp*humid*humid) - (0.00000199*temp*temp*humid*humid)-((humid-85)/10)*((87-temp)/5);
+        } else if (temp < 80){
+           x = 0.5*(temp + 61.0 + ((temp-68)*1.2) + (humid*0.094));
+        } else {
+           x = -42.379 + (2.04901523*temp) + (10.14333127*humid) - (0.22475541*temp*humid) - (0.00683783*temp*temp) - (0.05481717*humid*humid) + (0.00122874*temp*temp*humid) + (0.00085282*temp*humid*humid) - (0.00000199*temp*temp*humid*humid);
+        }
+      return(x);
+
+################  PRESSURE TEMPLATES #############
+  
+  - platform: template
+    name: "Equivalent sea level pressure"
+    id: sealevel_pressure
+    lambda: |-
+      const float STANDARD_ALTITUDE = 150.0; // in meters, see note
+      return id(pressure_hPa).state / powf(1 - ((0.0065 * STANDARD_ALTITUDE) /
+        (id(temperature_celsius).state + (0.0065 * STANDARD_ALTITUDE) + 273.15)), 5.257); // in hPa
+    update_interval: 1s
+    unit_of_measurement: 'hPa'
+    device_class: atmospheric_pressure
+    state_class: measurement
+    
+    
+  - platform: copy 
+    source_id: "sealevel_pressure"
+    name: "pressure_atm"
+    id: "pressure_atm"
+    unit_of_measurement: 'atm'
+    device_class: "atmospheric_pressure"
+    state_class: "measurement"
+    accuracy_decimals: 2
+    icon: "mdi:gauge"
+    filters:
+      - filter_out: NAN
+      - multiply: 0.000987 
+      
+  - platform: copy 
+    source_id: "pressure_hPa"
+    name: "pressure_inHg"
+    id: "pressure_inHg"
+    unit_of_measurement: 'inHg'
+    accuracy_decimals: 2
+    device_class: "atmospheric_pressure"
+    state_class: measurement
+    icon: "mdi:gauge"
+    filters:
+      - filter_out: NAN
+      - multiply: 0.029529983071445
+      
+  - platform: copy
+    source_id: "pressure_atm"
+    name: "pressure_collector"
+    id: pressure_collector
+    accuracy_decimals: 4
+    device_class: pressure
+    icon: "mdi:guage"
+    internal: true
+    filters:
+      - filter_out: NAN
+      - sliding_window_moving_average:
+          window_size: 60
+                
+# 1. The Collector: Analyzes the last 3 hours of data
+  - platform: copy
+    source_id: sealevel_pressure # Your source BME280 sensor ID
+    name: "Pressure Trend Analysis"
+    id: pressure_stats
+    accuracy_decimals: 4
+    unit_of_measurement: "hPa/h"
+    filters:
+      - lambda: |-
+          static float last_value = nan("");
+          static uint32_t last_time = 0;
+          float current_value = x;
+          uint32_t current_time = millis();
+          float result = 0;
+
+          if (!std::isnan(last_value) && current_time > last_time) {
+            // Calculate change per hour: (delta_value / delta_ms) * 3,600,000 ms/h
+            result = (current_value - last_value) / (current_time - last_time) * 3600000.0;
+          }
+
+          last_value = current_value;
+          last_time = current_time;
+          return result;
+    on_value:
+      then:
+        - lambda: 'id(pressure_slope_3h) = x;'
+
+        
+    
+################  ALTITUDE TEMPLATES #############
+
+  - platform: template
+    name: "Altitude"
+    id: altitude
+    update_interval: 60s
+    icon: 'mdi:altimeter'
+    unit_of_measurement: 'ft'
+    state_class: measurement
+    device_class: distance
+    # Just output the fixed 150m converted to feet
+    lambda: |-
+      return (150.0 * 3.28084);
+      
+  - platform: template
+    name: "Altitude_alt"
+    id: altitude_alt
+    internal: true
+    lambda: |-
+      const float STANDARD_SEA_LEVEL_PRESSURE = 1013.25; //in hPa, see note
+      float alt_meters = float((id(temperature_celsius).state + 273.15) / 0.0065) *
+        ((powf((STANDARD_SEA_LEVEL_PRESSURE / id(pressure_hPa).state), 0.190234) - 1)); // in m
+      return(alt_meters *  3.28084); // in ft 
+    update_interval: 1s
+    icon: 'mdi:altimeter'
+    unit_of_measurement: 'ft'
+    state_class: measurement
+    device_class: distance
+    
+    
+################  DEWPOINT TEMPLATES #############
+
+  - platform: template
+    name: "Dew Point"
+    id: dewpoint
+    lambda: |-
+      float dew_celsius = float(243.5*(log(id(humidity).state/100)+((17.67*id(temperature_celsius).state)/
+      (243.5+id(temperature_celsius).state)))/(17.67-log(id(humidity).state/100)-
+      ((17.67*id(temperature_celsius).state)/(243.5+id(temperature_celsius).state))));
+      return((dew_celsius) * (9/5) + 32);
+    unit_of_measurement: '°F'
+    icon: 'mdi:thermometer-alert'
+    device_class: temperature
+    state_class: measurement
+
+  - platform: template
+    name: "Indoor DewPoint"
+    id: indoor_dewpoint
+    lambda: |-
+      float t = id(temperature_celsius).state;
+      float h = id(humidity).state;
+      if (isnan(t) || isnan(h)) return NAN; // Safety check
+      float dew_c = 243.5 * (log(h/100.0) + ((17.67 * t) / (243.5 + t))) / (17.67 - log(h/100.0) - ((17.67 * t) / (243.5 + t)));
+      return (dew_c * 1.8) + 32.0; 
+    unit_of_measurement: "°F"
+    icon: "mdi:thermometer-water"
+
+
+################  FORECAST TEMPLATES #############
+
+      
+  - platform: homeassistant
+    name: "HASS Official Forecast"
+    id: hass_forecast
+    entity_id: sensor.custom_weather_summary
+
+  - platform: homeassistant
+    id: outdoor_temp_f
+    entity_id: weather.openweathermap
+    attribute: temperature
+    internal: true
+
+
+
+text_sensor:
+
+  - platform: template
+    name: "Local Barometric Forecast"
+    id: only_local_forecast
+    icon: "mdi:weather-cloudy-clock"
+    update_interval: 60s
+    lambda: |-
+      float p_hpa = id(sealevel_pressure).state;
+      if (isnan(p_hpa)) { return {"Calculating Barometer..."}; }
+      float p_atm = p_hpa / 1013.25;
+      float t_out_c = 20.0; // Dummy temp set to 20C (68F). 
+      std::string forecast = "";
+      if (p_atm < 0.980) { forecast = "Stormy / Heavy Precipitation";
+        if (t_out_c <= 0.0) forecast = "Heavy Snow Storm"; } 
+      else if (p_atm >= 0.980 && p_atm < 1.000) { forecast = "Precipitation Likely";
+        if (t_out_c <= 0.0) forecast = "Snow Likely"; } 
+      else if (p_atm >= 1.000 && p_atm < 1.010) { forecast = "Unsettled / Mostly Cloudy"; } 
+      else if (p_atm >= 1.010 && p_atm < 1.020) { forecast = "Stable / Partly Cloudy"; } 
+      else { forecast = "Clear / Fair Weather"; }
+      return {forecast};
+      
+      
+  - platform: template
+    name: "Pressure Trend"
+    id: pressure_trend_text
+    icon: "mdi:trending-up"
+    update_interval: 60s
+    lambda: |-
+      float delta = id(pressure_slope_3h);
+      if (delta <= -0.06) return {"Falling Very Rapidly"};
+      if (delta <= -0.04) return {"Falling Rapidly"};
+      if (delta <= -0.02) return {"Falling"};
+      if (delta <= -0.01) return {"Falling Gently"};
+      if (delta > -0.01 && delta < 0.01) return {"Steady"};
+      if (delta >= 0.01 && delta < 0.02) return {"Rising Gently"};
+      if (delta >= 0.02 && delta < 0.04) return {"Rising"};
+      if (delta >= 0.04 && delta < 0.06) return {"Rising Rapidly"};
+      if (delta >= 0.06) return {"Rising Very Rapidly"};
+      return {"Steady"};
+
+
+  - platform: template
+    name: "HASS Local Barometric Forecast"
+    id: local_forecast_hass
+    icon: "mdi:weather-cloudy-clock"
+    update_interval: 60s
+    lambda: |-
+      float p_hpa = id(sealevel_pressure).state;
+      
+      if (isnan(p_hpa)) {
+        return {"Calculating Barometer..."};
+      }
+    
+      float p_atm = p_hpa / 1013.25;
+    
+      // Pull the live temperature from OpenWeatherMap!
+      float t_out_f = id(outdoor_temp_f).state;
+    
+      // Safety check: If HA is disconnected/rebooting, default to a safe warm temp
+      if (isnan(t_out_f)) {
+        t_out_f = 50.0; 
+      }
+    
+      std::string forecast = "";
+    
+      // The Forecasting Algorithm (Now using 32°F for Snow)
+      if (p_atm < 0.980) {
+        forecast = "Stormy / Heavy Precipitation";
+        if (t_out_f <= 32.0) forecast = "Heavy Snow Storm"; 
+      } 
+      else if (p_atm >= 0.980 && p_atm < 1.000) {
+        forecast = "Precipitation Likely";
+        if (t_out_f <= 32.0) forecast = "Snow Likely";
+      } 
+      else if (p_atm >= 1.000 && p_atm < 1.010) {
+        forecast = "Unsettled / Mostly Cloudy";
+      } 
+      else if (p_atm >= 1.010 && p_atm < 1.020) {
+        forecast = "Stable / Partly Cloudy";
+      } 
+      else {
+        forecast = "Clear / Fair Weather";
+      }
+      return {forecast};
+
+  - platform: template
+    name: "Detailed Pressure Weather"
+    id: detailed_weather
+    icon: "mdi:weather-partly-cloudy"
+    update_interval: 60s
+    lambda: |-
+      float p = id(sealevel_pressure).state;
+      float slope = id(pressure_slope_3h);
+      std::string trend_text = id(pressure_trend_text).state;
+
+      if (isnan(p)) return {"Initializing Barometer..."};
+
+      // 1. Storm / Extreme Logic (Very Low Pressure)
+      if (p <= 960) return {"Stormy (" + to_string((int)p) + " hPa) - " + trend_text};
+      
+      // 2. Rain / Unsettled (Low Pressure)
+      if (p <= 990) {
+        if (slope < -0.02) return {"Heavy Rain / Gale Warning"};
+        return {"Rainy (" + to_string((int)p) + " hPa)"};
+      }
+
+      // 3. The "Change" / Transitional Zone (Standard Pressure)
+      if (p <= 1010) {
+        if (slope > 0.02) return {"Improving / Fairing Up"};
+        if (slope < -0.02) return {"Conditions Deteriorating"};
+        return {"Changeable / Unsettled"};
+      }
+
+      // 4. Fair / Dry (High Pressure)
+      if (p <= 1025) return {"Fair / Partly Cloudy"};
+      if (p <= 1045) return {"Dry / Sunny"};
+      
+      // 5. Extreme High (Your "Scorchio" and "Very Dry" levels)
+      if (p <= 1070) return {"Very Dry / High Pressure System"};
+      if (p <= 1090) return {"Scorchio / Record High Pressure"};
+
+      return {"Stable Conditions"};
+
+
