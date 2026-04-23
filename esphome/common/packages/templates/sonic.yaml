@@ -1,0 +1,39 @@
+sensor:
+  -   platform: ultrasonic 
+      name: "ultrasonic sensor feet"
+      trigger_pin: ${trig} 
+      echo_pin: ${echo} 
+      id: "ultrasonic_sensor_feet"
+      update_interval: 250ms
+      device_class: "distance"
+      state_class: "measurement"
+      unit_of_measurement: 'ft'
+      accuracy_decimals: 3
+    
+      icon: "mdi:tape-measure"
+      timeout: 3m
+      pulse_time: 5us
+    
+    
+      filters:
+        - skip_initial: 1
+        - filter_out: NAN
+        - sliding_window_moving_average:
+            window_size: 7
+            send_every: 7
+        - throttle_average: 2s
+        - multiply: 3.28084 # meters to feet
+        - lambda: return x; 
+    
+  - platform: copy 
+    name: "ultrasonic Sensor inches"
+    source_id: "ultrasonic_sensor_feet"
+    id: "ultrasonic_sensor_inches"
+    device_class: "distance"
+    state_class: "measurement"
+    unit_of_measurement: 'in'
+    accuracy_decimals: 3
+    filters:
+    - filter_out: NAN
+    - multiply: 12
+    - lambda: return x;

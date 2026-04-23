@@ -1,0 +1,18 @@
+# Set up the I2C bus for the INA219 sensor
+i2c:
+  sda: ${SDA}
+  scl: ${SCL}
+  scan: true
+
+# The Magic Sensor
+sensor:
+  - platform: ina219
+    address: 0x40
+    shunt_resistance: 0.1 ohm
+    voltage:
+      name: "Input Voltage"
+    current:
+      name: "Current Draw"
+    power:
+      name: "Power Consumption"
+    update_interval: 10s

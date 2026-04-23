@@ -1,0 +1,141 @@
+globals:
+    - id: "sound_sensitivity"
+      type: float
+      initial_value: '36.5'
+      restore_value: yes
+    
+    - id: sound_volume
+      type: int
+      
+
+
+  
+# use with;
+# - !include common/globals/motion_counter.yaml (or sound.yaml) - keeps variable of number of triggered motion 
+# - !include common/binary_sensor/motion_published_template.yaml - binary_sensor template that will be published as detected or clear
+# - !include common/binary_sensor/motion_detector_calculator_internal.yaml - internal used to count each motion triggered and if above threshold ... publishes detected to template above.
+
+sensor:
+  - platform: adc
+    name: "sound_db"
+    pin: ${asound}
+    id: sound_db
+    device_class: signal_strength
+    state_class: "measurement"
+    accuracy_decimals: 2
+    icon: "mdi:volume-vibrate"
+    unit_of_measurement: 'dB'
+    update_interval: 1s
+    raw: true
+    
+    filters:
+      - lambda: |-
+          unsigned int sample;
+          unsigned long startMillis= millis(); 
+          float peakToPeak = 0; 
+          unsigned int signalMax = 0;
+          unsigned int signalMin = 1024;
+          while (millis() - startMillis < 100) {
+            sample = analogRead(A0);
+            if (sample < 1024){
+                if (sample > signalMax){
+                    signalMax = sample;
+                }
+                else if (sample < signalMin){
+                    signalMin = sample;
+                }
+              }
+          }
+          peakToPeak = map((signalMax - signalMin),1,1024,1.5,1024);
+          id(sound_volume) = peakToPeak;
+          float state = id(sound_sensitivity)*log10(peakToPeak)+15;  
+          return(state);
+          
+  - platform: template
+    name: "RAW Sound"
+    icon: "mdi:volume-source"
+    device_class: "sound_pressure"
+    state_class: "measurement"
+    accuracy_decimals: 2
+    unit_of_measurement: '%'
+    update_interval: 5s
+    lambda: return(map(id(sound_volume),1,1024,0,100));
+    
+  - platform: template
+    name: "Sound Volume"
+    icon: "mdi:volume-high"
+    device_class: "volume"
+    state_class: "measurement"
+    accuracy_decimals: 2
+    unit_of_measurement: '%'
+    update_interval: 5s
+    lambda: return(map((id(sound_db).state),15,150,0,100));
+    
+    
+text_sensor:
+  -     platform: template
+        name: "Noise level"
+        id: "noise_level"
+        icon: "mdi:volume-plus"
+        update_interval: 5s
+    
+        lambda: |-
+          float db = float(id(sound_db).state);
+          if (db >= 194){ return {"Threshold of sound"}; }
+          else if (db >= 190){ return {"Grenade Epicenter"}; } 
+          else if (db >= 180){ return {"1 pound of TNT from 5 meters away"}; } 
+          else if (db >= 170){ return {"Rocket Ship launch from 100 meters away"}; }       
+          else if (db >= 160){ return {"Rifle, Fireworks at 3 feet away"}; } 
+          else if (db >= 150){ return {"Jet Engine at take off"}; }       
+          else if (db >= 140){ return {"fireworks, gunshot"}; } 
+          else if (db >= 130){ return {"Jackhammer, Ambulance"}; } 
+          else if (db >= 125){ return {"Chainsaw"}; } 
+          else if (db >= 120){ return {"Thunder, Concerts, Jet taking off"}; } 
+          else if (db >= 110){ return {"Nightclubs, sporting events, car honking"}; } 
+          else if (db >= 105){ return {"Snow Blower"}; } 
+          else if (db >= 100){ return {"Motorcycles, hand dryers"}; } 
+          else if (db >= 95){ return {"Electric Drill"}; }       
+          else if (db >= 90){ return {"Hairdryers, blenders, saxophone"}; } 
+          else if (db >= 80){ return {"Police car siren, a busy restaurant, alarm clock"}; } 
+          else if (db >= 75){ return {"Toilet flushing"}; } 
+          else if (db >= 70){ return {"Vacuum cleaners, traffic, washing machine"}; } 
+          else if (db >= 60){ return {"Normal conversation, dishwashers, electric toothbrush"}; } 
+          else if (db >= 55){ return {"Coffee Percolator"}; } 
+          else if (db >= 50){ return {"Moderate rainfall"}; } 
+          else if (db >= 40){ return {"Refrigerator hum, a quiet office, Library"}; }  
+          else if (db >= 30){ return {"A whisper"}; }  
+          else if (db >= 20){ return {"Leaves rustling, a ticking watch"}; }  
+          else if (db >= 10){ return {"Normal breathing"}; }  
+          else if (db >= 0){ return {"The softest sound a person can hear with normal hearing"}; }
+          return {};
+          
+number:
+  - platform: template
+    id: sound_sensitivity_slider
+    name: "Sensitivity Sound"
+    icon: "mdi:knob"
+    update_interval: 5s
+    initial_value: "36.5"
+    step: 0.1
+    min_value: 20
+    max_value: 40
+    
+    mode: slider
+    set_action:
+      then:
+       - lambda:  id(sound_sensitivity) = x;
+    
+    
+
+    
+    # sensors can have both device class and state_class
+    # device_class:  
+    # api, apparent_power, aqi, atmospheric_pressure, battery,battery, battery_charging, carbon_dioxide, carbon_monoxide, cold,
+    # conductivity, connectivity, current, data_rate, data_size, date, distance, door, duration, energy, energy_storage, enum, 
+    # frequency, garage_door, gas, heat, humidity, illuminance, irradiance, light, lock, moisture, monetary, motion, moving, mp25,
+    # nitrogen_dioxide, nitrogen_monoxide, nitrogen_oxide, nitrous_oxide, occupancy, opening, ozone, ph, plug, pm1, pm10, pm25, power, 
+    # power_factor, precipitation, precipitation_intensity, presence, pressure, problem, reactive_power, running, safety, signal_strength,
+    # smoke, sound, sound_pressure, speed, sulphur_dioxide, tamper, temperature, timestamp, update, vibration, volatile_organic_compounds,
+    # volatile_organic_compounds_parts, voltage, volume, volume_flow_rate, volume_storage, water, weight, window, wind_speed
+    
+    # state_class: total, total_increasing, measurement

@@ -1,0 +1,18 @@
+sensor:
+  - platform: adc
+    pin: ${voltage}
+    name: "Chip Voltage"
+    id: chip_voltage
+    update_interval: 10s
+    accuracy_decimals: 2
+    icon: "mdi:lightning-bolt"
+    unit_of_measurement: "V"
+    device_class: voltage
+    state_class: measurement
+    attenuation: 11db  # Fixed from 12db
+    filters:
+      # Removed the multiply: 3.3 to prevent massively inflated readings
+      - median:
+          window_size: 7
+          send_every: 4
+          send_first_at: 3

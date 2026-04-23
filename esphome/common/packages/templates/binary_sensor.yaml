@@ -1,0 +1,24 @@
+# Filename:  ../binary_sensor/binary_sensor.yaml
+# All general purpose reusable one-size-fits-all generic binary_sensor template
+
+substitutions:
+  # Defaults if not specified in the main YAML
+  invert: false # Default to non-inverted
+  pin: "GPIO4" # Dummy default
+  mode: "INPUT" # INPUT_PULLUP INPUT_PULLDOWN INPUT 
+
+binary_sensor:
+  - platform: gpio 
+    id: "${bname}_${class}_sensor"   # example porch_left_door, living_bay_window, office_center_motion
+    name: "${bname} ${class} Sensor" 
+    device_class: "${class}"
+    
+    pin: 
+      number: "${pin}"
+      mode: "${mode}"
+      inverted: "${invert}"
+    
+    filters:
+    - delayed_on: 10ms
+    - delayed_off: 3s
+    
