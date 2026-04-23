@@ -1,0 +1,28 @@
+name: "laundry_arduino"
+area: "pantry"
+staticip: xxx.xxx.xxx.xxx
+
+
+dsound: ${D33} # OK
+rwcl0516_motion1: ${D2}
+active: ${D12}
+passive: ${D13}
+washer: ${D27}
+dryer: ${D32}
+water: ${D34} 
+sda: ${D25} # OK
+scl: ${D26} # OK
+light: ${D35}
+
+
+radar_tx: ${TX2}
+radar_rx: ${RX2}
+LOGGER: "NONE"
+
+apikey: "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+otapass: xxxxxxxxxxxxxxxxxxx
+
+  
+<<: !include ../esp32_32pins.yaml
+<<: !include ../wifi_subs.yaml
+
