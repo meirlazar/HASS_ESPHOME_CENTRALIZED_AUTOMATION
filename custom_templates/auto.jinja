@@ -1,0 +1,684 @@
+{# Filename: auto.jinja #}
+{# ========================================================================== #}
+{# 1. MASTER QUERY & RESOLUTION MACROS                                        #}
+{# ========================================================================== #}
+
+{%- macro area_last_resort(area_or_entity_id) -%}
+  {%- set all_areas = areas() -%}
+  {%- set matched_areas = all_areas | select('in', area_or_entity_id) | list -%}
+  {{- matched_areas | first if matched_areas | length > 0 else 'None' -}}
+{%- endmacro -%}
+
+{%- macro _resolve_area_id(area_or_entity) -%}
+  {%- set res = area_id(area_or_entity) -%}
+  {%- if not res or res == 'None' -%}
+    {%- set res = area_name(area_or_entity) -%}
+  {%- endif -%}
+  {%- if not res or res == 'None' -%}
+    {%- set res = area_last_resort(area_or_entity) | trim -%}
+  {%- endif -%}
+  {{- res if res != 'None' else 'unknown' -}}
+{%- endmacro -%}
+
+
+{%- macro get_fn(entity_list) -%}
+  {%- if not entity_list -%}
+    None
+  {%- else -%}
+    {%- set ns = namespace(names=[]) -%}
+    {%- for e in entity_list | unique -%}
+      {%- set fn = state_attr(e, 'friendly_name') -%}
+      {%- set ns.names = ns.names + [fn if fn is not none else e] -%}
+    {%- endfor -%}
+    {{- ns.names | unique | join(', ') -}}
+  {%- endif -%}
+{%- endmacro -%}
+
+{%- macro _find(area_or_entity, domains=none, classes=none, inc=none, exc=none, state=none) -%}
+  {%- set resolved_area = _resolve_area_id(area_or_entity) -%}
+  {%- if not resolved_area or resolved_area == 'unknown' -%}
+    {{- [] | tojson -}}
+  {%- else -%}
+    {%- set ns = namespace(items = expand(area_entities(resolved_area))
+      | rejectattr('domain', 'in', ['automation', 'script', 'schedule', 'update', 'zone', 'group'])
+      | rejectattr('state', 'in', ['unavailable', 'unknown']) | list)
+    -%}
+
+    {%- if domains -%}
+      {%- set ns.items = ns.items | selectattr('domain', 'in', domains) | list -%}
+    {%- endif -%}
+    {%- if classes -%}
+      {%- set ns.items = ns.items | selectattr('attributes.device_class', 'defined') | selectattr('attributes.device_class', 'in', classes) | list -%}
+    {%- endif -%}
+    {%- if state -%}
+      {%- set ns.items = ns.items | selectattr('state', 'eq', state) | list -%}
+    {%- endif -%}
+    {%- if inc and inc != '' -%}
+      {%- set ns.items = ns.items | selectattr('entity_id', 'search', inc, ignorecase=true) | list -%}
+    {%- endif -%}
+    {%- if exc and exc != '' -%}
+      {%- set ns.items = ns.items | rejectattr('entity_id', 'search', exc, ignorecase=true) | list -%}
+    {%- endif -%}
+    {{- ns.items | map(attribute='entity_id') | list | tojson -}}
+  {%- endif -%}
+{%- endmacro -%}
+
+
+{# ========================================================================== #}
+{# 2. ROOM RULE MACRO                                                         #}
+{# ========================================================================== #}
+
+{%- macro room_rule(target_area, mode, inc='', exc='', inc_global_entity=[], conds=[], brightness=none) -%}
+  {# If there are any falsy values (False, 0) in conds, rejecting 'true' will leave them behind #}
+  {%- set met = (conds | reject('eq', true) | list | length == 0) -%}
+  {{ {'area': target_area, 'mode': mode, 'inc': inc if met else '', 'exc': exc if met else '', 'inc_global_entity': inc_global_entity if met else [], 'brightness': brightness if met else none} | tojson }}
+{%- endmacro -%}
+
+
+{# ========================================================================== #}
+{# 3. LIST ACCESSORS & MACROS                                                 #}
+{# ========================================================================== #}
+
+{%- macro allareas() -%}
+  {{- areas() | map('area_name') | list -}}
+{%- endmacro -%}
+
+{%- macro forceint(val, default=0) -%}
+  {{ val | int(default) }}
+{%- endmacro -%}
+
+{#- BINARY SENSORS -#}
+
+{%- macro mydoors(area, ex='') -%}
+  {{ _find(area, domains=['binary_sensor'], classes=['door', 'window', 'garage_door', 'opening'], exc=ex) }}
+{%- endmacro -%}
+
+{%- macro mywindows(area, exc='garage|door') -%}
+  {{ _find(area, domains=['binary_sensor'], classes=['window', 'opening'], exc=exc) }}
+{%- endmacro -%}
+
+{%- macro mymotions(area) -%}
+  {{ _find(area, domains=['binary_sensor'], classes=['motion', 'presence']) }}
+{%- endmacro -%}
+
+{%- macro myoccupancies(area) -%}
+  {{ _find(area, domains=['binary_sensor'], classes=['occupancy', 'presence']) }}
+{%- endmacro -%}
+
+{%- macro myopened(area_or_entity) -%}
+  {{ _find(area_or_entity, domains=['binary_sensor'], classes=['door', 'opening', 'window'], inc='arduino', state='on') }}
+{%- endmacro -%}
+
+{%- macro is_my_door_open(area_or_entity) -%}
+  {{- (myopened(area_or_entity) | from_json) | length > 0 -}}
+{%- endmacro -%}
+
+{%- macro active_motion(area_or_entity) -%}
+  {{ _find(area_or_entity, domains=['binary_sensor'], classes=['motion', 'occupancy'], state='on') }}
+{%- endmacro -%}
+
+{%- macro is_there_motion(area_or_entity) -%}
+  {{- (active_motion(area_or_entity) | from_json) | length > 0 -}}
+{%- endmacro -%}
+
+
+{#- ROOM SWITCHES, FANS, LIGHTS, HVAC -#}
+
+{%- macro myhotplate(area, inc='hotplate', exc='arduino|led_array|behavior|backlight|disturb|child|lock|select') -%}
+  {{ _find(area, domains=['switch'], inc=inc, exc=exc) }}
+{%- endmacro -%}
+
+{%- macro mylights(area, inc='light', exc='arduino|led_array|behavior|backlight|disturb|child|lock|select') -%}
+  {{ _find(area, domains=['light', 'switch'], inc=inc, exc=exc) }}
+{%- endmacro -%}
+
+{%- macro myfans(area, inc='fan', exc='alexa|disturb|arduino|child|lock|behavior|array|select') -%}
+  {{ _find(area, domains=['fan', 'switch'], inc=inc, exc=exc) }}
+{%- endmacro -%}
+
+{%- macro myac(area, inc='cool|ac|cooling', exc='alexa|disturb|arduino|child_lock|select|lock') -%}
+  {{ _find(area, domains=['climate', 'switch'], inc=inc, exc=exc) }}
+{%- endmacro -%}
+
+{%- macro myheater(area, inc='heat_therm|heater|heating', exc='alexa|disturb|select|arduino|child_lock|child|behavior') -%}
+  {{ _find(area, domains=['climate', 'switch'], inc=inc, exc=exc) }}
+{%- endmacro -%}
+
+{%- macro mythermometers(area_or_entity) -%}
+  {{ _find(area_or_entity, domains=['sensor', 'climate'], inc='temp|fahren|heat|cool|therm') }}
+{%- endmacro -%}
+
+{%- macro mytemp(area) -%}
+  {%- set devs = expand(mythermometers(area) | from_json) -%}
+  {%- set ns = namespace(ents=[]) -%}
+  {%- for x in devs -%}
+    {%- set val = x.state | float(999) -%}
+    {%- if val == 999 -%}
+      {%- set val = x.attributes.get('current_temperature', 999) | float(999) -%}
+    {%- endif -%}
+    {%- if val != 999 -%}
+      {%- set ns.ents = ns.ents + [ val ] -%}
+    {%- endif -%}
+  {%- endfor -%}
+  {{- ns.ents | average | round(1) if ns.ents | length > 0 else 'unavailable' -}}
+{%- endmacro -%}
+
+{#- DELTAS & CHANGES -#}
+
+{%- macro is_federal_holiday(dt=none, include_observed=true) -%}
+  {%- set d_obj = dt if dt != none else now() -%}
+  {%- set m = d_obj.month -%}
+  {%- set d = d_obj.day -%}
+  {%- set dow = d_obj.isoweekday() -%}
+  {%- set ns = namespace(holiday=false) -%}
+
+  {%- if (m == 1 and d == 1) or (m == 6 and d == 19) or (m == 7 and d == 4) or (m == 11 and d == 11) or (m == 12 and d == 25) -%}
+    {%- set ns.holiday = true -%}
+  {%- elif include_observed and (
+         (m == 1 and d == 2 and dow == 1) or (m == 12 and d == 31 and dow == 5) or
+         (m == 6 and d == 18 and dow == 5) or (m == 6 and d == 20 and dow == 1) or
+         (m == 7 and d == 3 and dow == 5) or (m == 7 and d == 5 and dow == 1) or
+         (m == 11 and d == 10 and dow == 5) or (m == 11 and d == 12 and dow == 1) or
+         (m == 12 and d == 24 and dow == 5) or (m == 12 and d == 26 and dow == 1)
+  ) -%}
+    {%- set ns.holiday = true -%}
+  {%- elif m == 1 and dow == 1 and 15 <= d <= 21 -%}
+    {%- set ns.holiday = true -%}
+  {%- elif m == 2 and dow == 1 and 15 <= d <= 21 -%}
+    {%- set ns.holiday = true -%}
+  {%- elif m == 5 and dow == 1 and d >= 25 -%}
+    {%- set ns.holiday = true -%}
+  {%- elif m == 9 and dow == 1 and 1 <= d <= 7 -%}
+    {%- set ns.holiday = true -%}
+  {%- elif m == 10 and dow == 1 and 8 <= d <= 14 -%}
+    {%- set ns.holiday = true -%}
+  {%- elif m == 11 and dow == 4 and 22 <= d <= 28 -%}
+    {%- set ns.holiday = true -%}
+  {%- endif -%}
+  {{- ns.holiday -}}
+{%- endmacro -%}
+
+{%- macro door_opened_less_than(area_or_entity, mins=1) -%}
+  {%- set open_doors = expand(_find(area_or_entity, domains=['binary_sensor'], classes=['door', 'opening', 'window'], state='on') | from_json) 
+    | rejectattr('last_changed', 'none') 
+    | list 
+  -%}
+  {%- set ns = namespace(recent=false) -%}
+  {%- for d in open_doors -%}
+    {%- if (now() - d.last_changed).total_seconds() < (mins | float * 60) -%}
+      {%- set ns.recent = true -%}
+    {%- endif -%}
+  {%- endfor -%}
+  {{- ns.recent -}}
+{%- endmacro -%}
+
+{%- macro _seconds_since_last_active(area) -%}
+  {%- set res = _resolve_area_id(area) -%}
+  {%- set ts = expand(area_entities(res))
+    | rejectattr('state', 'in', ['unknown', 'unavailable'])
+    | selectattr('domain', 'in', ['binary_sensor', 'light', 'switch', 'fan', 'climate'])
+    | rejectattr('last_changed', 'none')
+    | map(attribute='last_changed')
+    | list 
+  -%}
+  {{ (now() - (ts | max)).total_seconds() if ts else 999999 }}
+{%- endmacro -%}
+
+{%- macro statechangedafter_orig(area, mins=5) -%}
+  {{ _seconds_since_last_active(area) | float > (mins | float * 60) }}
+{%- endmacro -%}
+
+{%- macro statechangedafter(area, mins=5) -%}
+  {%- set last_log = states('sensor.automation_tracker') -%}
+  {%- if area in last_log -%}
+    {%- set last_ts = as_timestamp(state_attr('sensor.automation_tracker', 'last_updated'), 0) -%}
+    {{ (as_timestamp(now()) - last_ts) > (mins | float * 60) }}
+  {%- else -%}
+    True
+  {%- endif -%}
+{%- endmacro -%}
+
+{%- macro statechangedinlast(area, mins=5) -%}
+  {{ _seconds_since_last_active(area) | float <= (mins | float * 60) }}
+{%- endmacro -%}
+
+{%- macro area_temp_above(area, threshold=80) -%}
+ {%- set id = _resolve_area_id(area) -%}
+ {%- set val = mytemp(id) | float(999) -%}
+ {{- val != 999 and val > (threshold | float) -}}
+{%- endmacro -%}
+
+{%- macro area_temp_below(area, threshold=65) -%}
+ {%- set id = _resolve_area_id(area) -%}
+ {%- set val = mytemp(id) | float(999) -%}
+ {{- val != 999 and val < (threshold | float) -}}
+{%- endmacro -%}
+
+{%- macro is_time_between(start, end, weekdays=[]) -%}
+  {% set now_local = as_local(now()) %}
+  {% set t = now_local.strftime('%H:%M:%S') %}
+  {% if weekdays %}
+    {% set today = now_local.strftime('%a') | lower %}
+    {% set days = weekdays | map('lower') | list %}
+    {% if today not in days %}
+      false
+    {% else %}
+      {{ (start <= end and (t >= start and t <= end)) or (start > end and (t >= start or t <= end)) }}
+    {% endif %}
+  {% else %}
+    {{ (start <= end and (t >= start and t <= end)) or (start > end and (t >= start or t <= end)) }}
+  {% endif %}
+{%- endmacro -%}
+
+{%- macro device_is_off(pattern) -%}
+  {%- if not pattern -%}
+    {{ false }}
+  {%- else -%}
+    {%- set exact = states(pattern) -%}
+    {%- if exact not in ['unknown', ''] -%}
+      {{ exact == 'off' }}
+    {%- else -%}
+      {%- set matched = states | selectattr('entity_id', 'search', pattern, ignorecase=true) | list -%}
+      {{ matched | length > 0 and (matched | rejectattr('state', 'eq', 'off') | list | length == 0) }}
+    {%- endif -%}
+  {%- endif -%}
+{%- endmacro -%}
+
+{%- macro myfreeze(area) -%}
+  {%- set f = _find(area, domains=['input_button'], inc='freeze') | from_json -%}
+  {{- f | first if f else "input_button." ~ (_resolve_area_id(area)|lower|replace(' ','_')) ~ "_freeze" -}}
+{%- endmacro -%}
+
+{%- macro is_frozen(area, mins=120) -%}
+  {%- set b = myfreeze(area) -%}
+  {%- set s = states(b) -%}
+  {{ (as_timestamp(now()) - as_timestamp(s, 0)) < (mins * 60) if s not in ['unknown','unavailable','none',''] else False }}
+{%- endmacro -%}
+
+{%- macro cointoss() -%}
+  {{ is_state('binary_sensor.random_on_off', 'on') }}
+{%- endmacro -%}
+
+{%- macro randomwait() -%}
+  {%- if is_state('binary_sensor.jewish_calendar_issur_melacha_in_effect', 'on') and is_state('binary_sensor.random_on_off', 'on') -%}
+  {{ states('sensor.random_delay_seconds') | int(20) }}
+  {%- else -%}0{%- endif -%}
+{%- endmacro -%}
+
+{%- macro actiontime() -%}{{- (now() + timedelta(seconds=randomwait()|int)).strftime("%m-%d-%Y %r") -}}{%- endmacro -%}
+
+{%- macro calculate_timer(conf, v) -%}
+  {%- set ns = namespace(mins=15) -%}
+  {%- if conf.timer_logic is defined -%}
+  {%- set l = conf.timer_logic -%}
+  {%- if (l.get('if_true_cond') and v.get(l.get('if_true_cond'))) or (l.get('if_true_trig') and v.mytrigger and v.mytrigger | regex_search(l.get('if_true_trig'), ignorecase=True)) -%}
+    {%- set ns.mins = l.get('if_true_mins', 15) -%}
+  {%- elif (l.get('if_false_cond') and not v.get(l.get('if_false_cond'))) or (l.get('if_false_trig') and v.mytrigger and v.mytrigger | regex_search(l.get('if_false_trig'), ignorecase=True)) -%}
+    {%- set ns.mins = l.get('if_false_mins', 15) -%}
+  {%- endif -%}
+  {%- endif -%}
+  {{ ns.mins | int }}
+{%- endmacro -%}
+
+
+
+
+{# ========================================================================== #}
+{# 4. MASTER ENGINE EXPORT                                                    #}
+{# ========================================================================== #}
+
+{%- macro set_all_vars(trig, area_override=none) -%}
+  {%- set area = area_override if area_override else _resolve_area_id(trig) -%}
+
+{#- TIME BASED VARIABLES -#}
+
+  {%- set curr_time = now() -%}
+  {%- set h = curr_time.hour -%}
+
+  {%- set noon = today_at('12:00') -%}
+  {%- set sun = is_state('sun.sun', 'above_horizon') -%}
+  {%- set sunset_raw = state_attr('sun.sun', 'next_setting') -%}
+  {%- set sunset = as_local(as_datetime(sunset_raw)).replace(year=curr_time.year, month=curr_time.month, day=curr_time.day) if sunset_raw else today_at('18:00') -%}
+  {%- set mid = noon + timedelta(seconds=((sunset - noon).total_seconds() / 2) | int) -%}
+
+  {%- if sun and curr_time < noon -%}{%- set period = 'MORNING' -%}
+  {%- elif sun and noon <= curr_time < mid -%}{%- set period = 'AFTERNOON' -%}
+  {%- elif sun and mid <= curr_time -%}{%- set period = 'EVENING' -%}
+  {%- else -%}{%- set period = 'NIGHT' -%}{%- endif -%}
+ 
+  {%- set is_morning = period == 'MORNING' -%}
+  {%- set is_afternoon = period == 'AFTERNOON' -%}
+  {%- set is_evening = period == 'EVENING' -%}
+  {%- set is_night = not sun -%}
+  {%- set is_day = sun -%}
+  {%- set is_sleeptime = h >= 23 or h < 10 -%}         
+  {%- set is_lateevening = h >= 20 -%}                 
+  {%- set is_earlymorning = h >= 5 and h < 9 -%}       
+
+  {%- set dow = curr_time.isoweekday() -%}
+  {%- set is_monday = dow == 1 -%}
+  {%- set is_tuesday = dow == 2 -%}
+  {%- set is_wednesday = dow == 3 -%}
+  {%- set is_thursday = dow == 4 -%}
+  {%- set is_friday = dow == 5 -%}
+  {%- set is_saturday = dow == 6 -%}
+  {%- set is_sunday = dow == 7 -%}
+
+  {%- set is_holiday = is_federal_holiday() | trim == 'True' -%}
+  {%- set is_weekday = dow <= 5 -%}
+  {%- set is_weekend = dow >= 6 -%}
+  {%- set is_workday = dow <= 5 and not is_holiday -%}
+  {%- set is_shabbos = is_state('binary_sensor.jewish_calendar_issur_melacha_in_effect', 'on') -%}
+  {%- set is_worktime = h >= 9 and h < 19 and is_workday -%}
+
+  {%- set sunset_dt = as_local(as_datetime(sunset_raw)) if sunset_raw else none -%}
+  {%- set mins_to_sunset = ((sunset_dt - curr_time).total_seconds() / 60) if sunset_dt else 999 -%}
+  {%- set is_beforeshabbos = is_friday and (0 < mins_to_sunset <= 60) -%}
+
+{#- SEASONS BASED VARIABLES -#}
+
+  {%- set curr_month = curr_time.month -%}
+  {%- set curr_season = 'spring' if curr_month in [3,4,5] else ('summer' if curr_month in [6,7,8] else ('fall' if curr_month in [9,10] else 'winter')) -%}
+  {%- set is_summer = curr_season == 'summer' -%}
+  {%- set is_winter = curr_season == 'winter' -%}
+  {%- set is_fall = curr_season == 'fall' -%}
+  {%- set is_spring = curr_season == 'spring' -%}
+
+{#- AREAS BASED VARIABLES -#}
+
+  {%- set list_bedrooms = ['parents', 'kid1', 'kid2', 'kid3', 'kid4'] -%}
+  {%- set list_living = ['living', 'dining', 'kitchen', 'hallway', 'pantry', 'porch'] -%}
+  {%- set list_outdoor = ['backyard', 'frontyard', 'driveway', 'deck', 'overhang', 'yard'] -%}
+  {%- set list_office = ['office'] -%}
+
+  {%- set is_bedroom = area in list_bedrooms -%}
+  {%- set is_livingarea = area in list_living -%}
+  {%- set is_outdoor = area in list_outdoor -%}
+  {%- set is_indoor = area not in list_outdoor -%}
+  {%- set is_office = area in list_office -%}
+
+{#- TEMP BASED VARIABLES -#}
+
+  {%- set curr_temp = mytemp(area) | float(999) -%}
+  {%- set too_hot_limit = 80 -%}
+  {%- set too_cold_limit = 67 -%}
+  {%- set extreme_heat_limit = 92 -%}
+  {%- set extreme_cold_limit = 50 -%}
+  {%- set turn_on_ac_at = 79 -%}
+  {%- set turn_on_office_ac_at = 72 -%}
+  {%- set turn_off_ac_at = 77 -%} 
+  {%- set turn_on_heat_at = 68 -%} 
+  {%- set turn_off_heat_at = 72 -%}
+
+  {%- set turn_heating_off = curr_temp != 999 and (curr_temp >= turn_off_heat_at) -%}
+  {%- set turn_heating_on = curr_temp != 999 and curr_temp <= turn_on_heat_at -%} 
+  {%- set turn_cooling_on = not is_winter and curr_temp != 999 and curr_temp >= extreme_heat_limit -%}
+  {%- set turn_office_cooling_on = not is_winter and curr_temp != 999 and curr_temp >= turn_on_office_ac_at -%}
+  {%- set turn_cooling_off = curr_temp != 999 and curr_temp <= turn_off_ac_at -%}
+  {%- set house_fan_on = is_state('fan.house_fan', 'on') -%}
+  {%- set is_cold_outside = states('sensor.outdoor_temperature') | int(999) < 65 -%}
+  {%- set is_too_cold_outside = states('sensor.outdoor_temperature') | int(999) < 55 -%}
+  {%- set is_hot_outside = states('sensor.outdoor_temperature') | int(999) > 75 -%}
+  {%- set is_too_hot_outside = states('sensor.outdoor_temperature') | int(999) > 85 -%}
+  {%- set needs_ac_on = curr_temp != 999 and curr_temp >= turn_on_ac_at -%}
+
+{#- DYNAMIC CHANGES BASED VARIABLES -#}
+  {#- DYNAMIC CHANGES BASED VARIABLES -#}
+
+  {%- set are_my_doors_opened = is_my_door_open(area) | trim == 'True' -%}
+  {%- set door_open_under_1m = door_opened_less_than(area, 1) | trim == 'True' -%}
+  {%- set door_open_under_5m = door_opened_less_than(area, 5) | trim == 'True' -%}
+  {%- set movement_detected = is_there_motion(area) | trim == 'True' -%}
+
+ 
+{# ========================================================================== #}
+{#  MASTER ROOM RULES                                                         #}
+{# ========================================================================== #}
+
+  {%- set raw_rules = [
+ 
+   room_rule(area, 'up', exc='heat', conds=[(not is_bedroom or not is_sleeptime or turn_heating_off or not is_winter)]),
+   room_rule(area, 'up', exc='cool', conds=[(not is_bedroom or not is_sleeptime or turn_cooling_off or is_winter)]),
+   room_rule(area, 'up', exc='light|outdoor', conds=[is_sleeptime, is_bedroom]),
+   room_rule(area, 'up', exc='light', conds=[is_day, is_outdoor]),
+   room_rule(area, 'up', exc='fan|ac', conds=[is_winter]),
+   
+   room_rule(area, 'down', exc='light', conds=[is_livingarea, (is_shabbos or is_beforeshabbos)]),
+   room_rule(area, 'down', exc='heat', conds=[not is_bedroom, not is_sleeptime, turn_heating_on]),
+   room_rule(area, 'down', exc='cool', conds=[not is_bedroom, not is_sleeptime, turn_cooling_on]),
+   
+   
+   
+   room_rule('office', 'up', inc='fan', exc='ac|sofa|desk', conds=[(is_night or is_winter)]),
+   room_rule('office', 'up', exc='outdoor_light'),
+   room_rule('office', 'up', inc='fan', exc='monitor|desk|sofa|outdoor', conds=[(is_shabbos or is_sleeptime or not is_worktime)]),
+   room_rule('office', 'up', inc='desk|fan', conds=[is_worktime]),
+   room_rule('office', 'up', inc='cool', conds=[turn_office_cooling_on]),
+   room_rule('office', 'up', inc_global_entity=['light.yard_light', 'light.overhang_light'], brightness=45, conds=[are_my_doors_opened, is_night, door_open_under_1m]),
+   
+   
+   room_rule('office', 'down', exc='bar|personal|fan', conds=[is_shabbos]),
+   room_rule('office', 'down', exc='desk|fan', conds=[is_worktime]),
+   
+   room_rule('overhang', 'up', inc_global_entity=['light.yard_light'], exc='dual_outlets', brightness=50, conds=[is_night]),
+   room_rule('overhang', 'down', inc_global_entity=['light.yard_light', 'light.deck_light', 'light.overhang_light']),
+   
+   room_rule('living', 'down', exc='light', conds=[(is_worktime or is_shabbos)]),
+   room_rule('living', 'up', exc='fan'),
+   
+   room_rule('gym', 'up', exc='party|sound|fan'),
+   room_rule('gym', 'up', inc_global_entity=['light.yard_light', 'light.overhang_light'], brightness=50, conds=[are_my_doors_opened, is_night, door_open_under_1m]),
+   room_rule('gym', 'down', inc_global_entity=['light.yard_light', 'light.deck_light', 'light.overhang_light']),
+
+
+   room_rule('parents', 'down', exc='heater_plug', conds=[(is_night or is_sleeptime), is_winter]),
+   room_rule('parents', 'up', exc='parents.light', conds=[(is_sleeptime or is_night)]),
+   room_rule('parents', 'up', exc='parents_plug_3'),
+   room_rule('parents', 'up', inc_global_entity=['light.yard_light'], brightness=40, conds=[are_my_doors_opened, is_night, door_open_under_1m]),
+   
+   room_rule('porch', 'down', inc='house_fan', conds=[(is_too_cold_outside or is_hot_outside)]),
+   room_rule('porch', 'down', exc='hotplate$', inc='child|behavior', conds=[(is_shabbos or is_beforeshabbos)]),
+   room_rule('porch', 'up', inc='hotplate$', exc='child|behavior', conds=[(is_shabbos or is_beforeshabbos)]),
+   room_rule('porch', 'up', exc='house_fan'),
+   room_rule('porch', 'up', exc='hotplate', conds=[(not is_shabbos and not is_beforeshabbos)]),
+   room_rule('porch', 'up', exc='house_fan', conds=[(is_too_cold_outside or is_hot_outside)]),
+
+   room_rule('elana', 'up', inc='heat', conds=[is_worktime, turn_heating_on]),
+   room_rule('area', 'down', inc='heat', conds=[turn_heating_off]),
+
+
+   room_rule(area, 'up', inc='cool', conds=[needs_ac_on, not is_winter, not is_cold_outside, not house_fan_on]),
+   room_rule(area, 'up', exc='cool', conds=[(not needs_ac_on or is_winter or is_cold_outside or house_fan_on)]),
+   room_rule(area, 'down', inc='cool', conds=[is_bedroom, turn_cooling_off])
+  ] -%}
+
+{# ========================================================================== #}
+{# END OF MASTER ROOM RULES                                                   #}
+{# ========================================================================== #}
+
+  {# --- 3. PARSE RULES FOR THIS SPECIFIC AREA --- #}
+  {%- set global_brightness = 40 if is_sleeptime else (60 if is_night else 100) -%}
+
+  {# A. Convert raw JSON strings to objects and isolate ONLY rules for this specific area #}
+  {%- set local_rules = raw_rules | map('from_json') | selectattr('area', 'eq', area) | list -%}
+  
+  {# B. Separate into UP and DOWN modes #}
+  {%- set up_rules = local_rules | selectattr('mode', 'eq', 'up') | list -%}
+  {%- set dn_rules = local_rules | selectattr('mode', 'eq', 'down') | list -%}
+
+  {# C. Map attributes, reject empty strings, and join them directly with pipes #}
+  {%- set final_up_inc = up_rules | map(attribute='inc') | reject('eq', '') | join('|') -%}
+  {%- set final_up_exc = up_rules | map(attribute='exc') | reject('eq', '') | join('|') -%}
+  {%- set final_dn_inc = dn_rules | map(attribute='inc') | reject('eq', '') | join('|') -%}
+  {%- set final_dn_exc = dn_rules | map(attribute='exc') | reject('eq', '') | join('|') -%}
+
+  {# D. Pull global entities safely using a namespace loop #}
+  {%- set ns_glob = namespace(up=[], dn=[]) -%}
+  {%- for r in up_rules -%}
+    {%- set ns_glob.up = ns_glob.up + r.inc_global_entity -%}
+  {%- endfor -%}
+  {%- for r in dn_rules -%}
+    {%- set ns_glob.dn = ns_glob.dn + r.inc_global_entity -%}
+  {%- endfor -%}
+  {%- set inc_global_entity_up = ns_glob.up | unique | list -%}
+  {%- set inc_global_entity_dn = ns_glob.dn | unique | list -%}
+
+  {# E. Grab the last valid brightness setting from the rules, otherwise fallback to global #}
+  {%- set custom_brightness = up_rules | map(attribute='brightness') | reject('none') | list | last | default(none, true) -%}
+  {%- set target_brightness = custom_brightness if custom_brightness != none else global_brightness -%}
+
+  {# --- 4. GLOBAL EXCLUSIONS --- #}
+  {# These apply to EVERY room automatically #}
+  {%- set glob_exc_up = 'alexa|behavior|child_lock|cellphone|do_not_disturb|arduino|script|group|select|automation|helper|backlight|led_array|backlight|dual_outlets|_led' -%}
+  {%- set glob_exc_down = 'alexa|behavior|child_lock|cellphone|do_not_disturb|arduino|script|group|select|automation|helper|backlight|led_array|_led' -%}
+  
+  {%- set comb_up_exc = (glob_exc_up ~ '|' ~ final_up_exc) | trim('|') -%}
+  {%- set comb_dn_exc = (glob_exc_down ~ '|' ~ final_dn_exc) | trim('|') -%}
+
+  {# ======================================================================= #}
+  {# 5. THE BUILD PIPELINE (Auto Base -> BLOCKED Filter -> ROOM Mode)        #}
+  {# ======================================================================= #}
+
+  {# A. Calculate BLOCKS based on Temps #}
+  {%- set acs = myac(area) | from_json -%}
+  {%- set heats = myheater(area) | from_json -%}
+  {%- set fans = myfans(area) | from_json -%}
+ 
+  {%- set do_not_turn_on = acs + fans if (is_winter or (curr_temp != 999 and curr_temp <= too_cold_limit )) else [] -%}
+  {%- set do_not_turn_off = heats if (curr_temp != 999 and curr_temp <= extreme_cold_limit) else [] -%}
+
+  {# B. Grab Auto Base (Minus Exclusions) #}
+  {%- set base_up = _find(area, domains=['light','switch','fan','climate'], exc=comb_up_exc) | from_json -%}
+  {%- set base_dn = _find(area, domains=['light','switch','fan','climate'], exc=comb_dn_exc) | from_json -%}
+
+  {# C. STRIPS OUT THE DEVICES IN THE 'DO_NOT_TURN_ON' AND 'DO_NOT_TURN_OFF' LIST #}
+  {%- set safe_up = base_up | reject('in', do_not_turn_on) | list -%}
+  {%- set safe_dn = base_dn | reject('in', do_not_turn_off) | list -%}
+
+  {# D. The ROOM RULES Inclusions and Exclusions (Bypasses Safety & Exclusions) #}
+  {%- set manual_up = _find(area, inc=final_up_inc) | from_json if final_up_inc != '' else [] -%}
+  {%- set manual_dn = _find(area, inc=final_dn_inc) | from_json if final_dn_inc != '' else [] -%}
+
+  {# E. Final Synthesis #}
+  {%- set turn_on = (safe_up + manual_up + inc_global_entity_up) | unique | list -%}
+  {%- set turn_off = (safe_dn + manual_dn + inc_global_entity_dn) | unique | list -%}
+
+  {# F. TRACK WHAT WAS BLOCKED & SEPARATE GLOBAL VS LOCAL #}
+  {%- set raw_all = _find(area, domains=['light','switch','fan','climate'], exc='arduino') | from_json -%}
+ 
+  {# Find exact entities filtered out by your regex exclusions #}
+  {%- set regex_excluded_up = raw_all | reject('in', base_up) | list -%}
+  {%- set regex_excluded_dn = raw_all | reject('in', base_dn) | list -%}
+
+  {# Split the final actions into Local Area devices vs Global Overrides #}
+  {%- set local_turn_on = turn_on | reject('in', inc_global_entity_up) | list -%}
+  {%- set global_turn_on = turn_on | select('in', inc_global_entity_up) | list -%}
+ 
+  {%- set local_turn_off = turn_off | reject('in', inc_global_entity_dn) | list -%}
+  {%- set global_turn_off = turn_off | select('in', inc_global_entity_dn) | list -%}
+
+  {# ======================================================================= #}
+  {# 6. HEURISTIC TIMER LOGIC                                                #}
+  {# ======================================================================= #}
+  {#-
+  HOW TO USE TIMERS:
+  - Add your area to this dictionary.
+  - if_true_cond: Checks a "Fact" (e.g., 'isshabbos', 'isnight').
+  - if_true_trig: Checks a regex against the entity that triggered the automation.
+  - if neither condition is met, it defaults to 15 minutes.
+  -#}
+  {%- set area_timers = {
+  'gym': {'timer_logic': {'if_true_cond': 'is_shabbos', 'if_true_trig': 'door', 'if_true_mins': 5, 'if_false_cond': 'is_night', 'if_false_trig': 'motion', 'if_false_mins': 30}},
+  'hallway': {'timer_logic': {'if_true_trig': 'motion', 'if_true_mins': 2, 'if_false_trig': 'door', 'if_false_mins': 10}}
+  } -%}
+
+  {%- set facts = {'mytrigger': trig, 'is_shabbos': is_shabbos, 'is_summer': is_summer, 'is_night': is_night} -%}
+  {%- set dynamic_timer = calculate_timer(area_timers.get(area, {}), facts) | int -%}
+
+{# ======================================================================= #}
+{# 7. THE ULTIMATE JSON EXPORT                                             #}
+{# ======================================================================= #}
+{{ {
+ "mytrigger": trig,
+ "mytriggerstate": states(trig) if trig else '',
+ "thisthing": state_attr(trig, 'friendly_name') if trig else '',
+ "myarea": area,
+ "mytime": as_local(curr_time).strftime("%m-%d-%Y %r"),
+
+ "devices_to_turn_on": turn_on,
+ "devices_to_turn_off": turn_off,
+ "lights_to_turn_on": turn_on | select('search', '^light\\.', ignorecase=true) | list,
+ "others_to_turn_on": turn_on | reject('search', '^light\\.', ignorecase=true) | list,
+ "target_brightness": target_brightness,
+ 
+ "off_delay": dynamic_timer,
+ "quiet_for_dynamic": statechangedafter(area, dynamic_timer),
+
+ "mytemp": curr_temp,
+ "too_hot": (curr_temp != 999 and curr_temp > too_hot_limit),
+ "too_cold": (curr_temp != 999 and curr_temp < too_cold_limit),
+ "extreme_heat": (curr_temp != 999 and curr_temp > extreme_heat_limit),
+ "extreme_cold": (curr_temp != 999 and curr_temp < extreme_cold_limit),
+ 
+ "turn_heating_off": turn_heating_off,
+ "turn_heating_on": turn_heating_on,
+ "turn_cooling_on": turn_cooling_on,
+ "turn_cooling_off": turn_cooling_off,
+
+ "period": period,
+ "is_winter": is_winter,
+ "is_spring": is_spring,
+ "is_summer": is_summer,
+ "is_fall": is_fall,
+ "is_morning": is_morning,
+ "is_day": is_day,
+ "is_afternoon": is_afternoon,
+ "is_evening": is_evening,
+ "is_sleeptime": is_sleeptime, 
+ "is_night": is_night,
+ "curr_season": curr_season,
+ "is_weekend": is_weekend,
+ "is_weekday": is_weekday,
+ "is_worktime": is_worktime,
+ "is_workday": is_workday,
+ "is_holiday": is_holiday,
+ "is_beforeshabbos": is_beforeshabbos,
+ "is_shabbos": is_shabbos,
+ "is_frozen": is_frozen(area) | trim == 'True',
+ "myfreeze": myfreeze(area) | trim,
+ "cointoss": cointoss() | trim == 'True',
+ "randomwait": randomwait() | int(0),
+ "actiontime": actiontime() | trim,
+ "active_last_5m": statechangedinlast(area, 5),
+ "mylights": mylights(area) | from_json,
+ "myac": acs,
+ "myheater": heats,
+ "myfans": fans,
+ "are_my_doors_opened": are_my_doors_opened,
+ "door_open_under_1m": door_open_under_1m,
+ "door_open_under_5m": door_open_under_5m,
+ "movement_detected": movement_detected,
+ "mydoors": mydoors(area) | from_json,
+ "mymotions": mymotions(area) | from_json,
+ "myoccupancies": myoccupancies(area) | from_json,
+ "mywindows": mywindows(area) | from_json,
+ "mythermometer": mythermometers(area) | from_json | first | default('', true),
+ "mythermometers": mythermometers(area) | from_json,
+
+
+"log_meta": {
+    "trigger_info": "🎯 Trigger: " ~ (state_attr(trig, 'friendly_name') | default(trig, true) if trig else "Unknown"),
+    "action_ON_active": "🕒 Time: " ~ (mytime) ~
+                        "\n✅ ON: " ~ get_fn(local_turn_on) ~
+                        "\n🌍 GLOBAL ON: " ~ get_fn(global_turn_on) ~
+                        ("\n💡 Brightness: " ~ target_brightness ~ "%" if (turn_on | select('search', '^light\\.', ignorecase=true) | list | length > 0) else ""),
+    "action_ON_blocked": "⚠️ DO NOT TURN ON: " ~ get_fn(do_not_turn_on) ~
+                         "\n⛔ EXCLUDED ON: " ~ get_fn(regex_excluded_up),
+    "action_OFF_active": "🕒 Time: " ~ (mytime) ~
+                         "\n🛑 OFF: " ~ get_fn(local_turn_off) ~
+                         "\n🌍 GLOBAL OFF: " ~ get_fn(global_turn_off),
+    "action_OFF_blocked": "⚠️ DO NOT TURN OFF: " ~ get_fn(do_not_turn_off) ~
+                          "\n⛔ EXCLUDED OFF: " ~ get_fn(regex_excluded_dn)
+  }
+} | tojson }}
+{%- endmacro %}
