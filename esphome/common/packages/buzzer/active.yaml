@@ -1,0 +1,147 @@
+switch:
+  - platform: gpio
+    pin: ${active}
+    id: "active_buzzer"
+    name: "active_buzzer"
+    internal: true
+
+script:
+  - id: buzzer_script
+    parameters:
+      on_time_ms: int
+      off_time_ms: int
+      reps: int
+    mode: restart  # cancel prior if new pattern selected
+    then:
+      - repeat:
+          count: !lambda 'return reps;'
+          then:
+            - switch.turn_on: active_buzzer
+            - delay: !lambda 'return on_time_ms;'
+            - switch.turn_off: active_buzzer
+            - delay: !lambda 'return off_time_ms;'
+            
+    
+    # this can be used with the following example code 
+    # - lambda: |-
+    #          ESP_LOGI("buzzer", "Pattern selected: %s", x.c_str());
+    #          if (x == "None") return;
+    #          if (x == "Fast") {
+    #            id(buzzer_script).execute(300, 100, 15);
+    #          } else if (x == "Slow") {
+    #            id(buzzer_script).execute(1000, 300, 7);
+    #          } else if (x == "Chirp") {
+    #            id(buzzer_script).execute(200, 1000, 2);
+    #          } else if (x == "Pulsing") {
+    #            id(buzzer_script).execute(150, 150, 20);
+    #          } else if (x == "Burst") {
+    #            id(buzzer_script).execute(50, 50, 30);
+    
+    # (on_time_ms off_time_ms howmanyreps)
+    
+
+
+select:
+  - platform: template
+    name: "Buzzer Pattern"
+    id: buzzer_pattern_select
+    options:
+      - "None"
+      - "Fast"
+      - "Slow"
+      - "SOS"
+      - "Chirp"
+      - "Pulsing"
+      - "Wail"
+      - "Beep-Beep"
+      - "Burst"
+      - "Sweep"
+    initial_option: "None"
+    optimistic: true
+    restore_value: false
+    on_value:
+      then:
+        - lambda: |-
+            ESP_LOGI("buzzer", "Pattern selected: %s", x.c_str());
+            if (x == "None") return;
+            if (x == "Fast") {
+              id(buzzer_script).execute(100, 50, 15);
+            } else if (x == "Slow") {
+              id(buzzer_script).execute(1000, 300, 4);
+            } else if (x == "Chirp") {
+              id(buzzer_script).execute(50, 50, 1);
+            } else if (x == "Pulsing") {
+              id(buzzer_script).execute(150, 150, 20);
+            } else if (x == "Burst") {
+              id(buzzer_script).execute(20, 30, 30);
+            } else if (x == "Beep-Beep") {
+              id(buzzer_script).execute(50, 50, 2);
+              delay(1000);
+              id(buzzer_script).execute(50, 50, 2);
+              delay(1000);
+              id(buzzer_script).execute(50, 50, 2);
+              delay(1000);
+              id(buzzer_script).execute(50, 50, 2);
+            } else if (x == "Sweep") {
+                int i = 2000;
+                int j = i / 2;
+                id(buzzer_script).execute(i, j, 2);
+                delay(j);
+                j =  j / 2;
+                id(buzzer_script).execute(j, j, 2);
+                delay(j);
+                j =  j / 2;
+                id(buzzer_script).execute(j, j, 2);
+                delay(j);
+                j =  j / 2;
+                id(buzzer_script).execute(j, j, 2);
+            } else if (x == "Wail") {
+                id(buzzer_script).execute(100, 50, 1);
+                delay(400);
+                id(buzzer_script).execute(200, 50, 1);
+                delay(600);
+                id(buzzer_script).execute(300, 50, 1);
+            } else if (x == "SOS") {
+                id(buzzer_script).execute(200, 50, 3);  // S
+                delay(500);
+                id(buzzer_script).execute(50, 50, 3);  // O
+                delay(500);
+                id(buzzer_script).execute(200, 50, 3);  // S
+            }
+  
+            // Reset to "None" after playing
+            id(buzzer_pattern_select).publish_state("None");
+       
+            
+              
+  #################### using the ACTIVE buzzer requires these configs/YAMLS; ############################
+  #substitutions:
+  # active_buzzer: ${SCL}
+  #switch: 
+  #  - !include common/switch/active_buzzer.yaml (THIS IS THE OUTPUT - NO NEED FOR A SEPARATE OUTPUT FILE)
+  # script
+  #  - !include: common/script/initmodes.yaml
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+    
+    

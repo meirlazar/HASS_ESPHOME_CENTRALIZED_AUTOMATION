@@ -1,0 +1,55 @@
+light:
+  - platform: esp32_rmt_led_strip
+    rgb_order: GRB 
+    pin: ${led_array}
+    num_leds: ${num_leds}
+    # Removed entity_category so this shows up normally in Home Assistant!
+    name: "LED Array" 
+    id: led_array_light
+    icon: "mdi:led-strip"
+    chipset: WS2812
+    default_transition_length: 3s
+    effects: !include_dir_list ./effects
+    
+button:
+  - platform: template
+    name: "Cycle Thru All LED Effects"
+    id: cycle_all_led_effects
+    icon: "mdi:led-strip"
+    entity_category: config
+    
+    on_press:
+      - lambda: |-
+          auto *light = id(led_array_light);
+          auto &effects = light->get_effects();
+          
+          if (effects.empty()) {
+            ESP_LOGW("cycle_effects", "No effects available!");
+            return;
+          }
+          
+          // 1. Find out what effect is currently playing right now
+          std::string active_effect = light->get_effect_name();
+          int next_index = 0;
+          
+          // 2. Search the list to find the current effect's position
+          for (int i = 0; i < effects.size(); i++) {
+            if (effects[i]->get_name() == active_effect) {
+              next_index = i + 1; // Target the NEXT effect in the list
+              break;
+            }
+          }
+          
+          // 3. If we reached the end of the list, loop back to the beginning
+          if (next_index >= effects.size()) {
+            next_index = 0;
+          }
+          
+          // 4. Fire the command!
+          std::string effect_name = std::string(effects[next_index]->get_name());
+          ESP_LOGI("cycle_effects", "Switching to effect: %s", effect_name.c_str());
+          
+          auto call = light->make_call();
+          call.set_state(true); // Force power ON
+          call.set_effect(effect_name);
+          call.perform();

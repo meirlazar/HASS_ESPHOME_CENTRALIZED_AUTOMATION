@@ -1,0 +1,146 @@
+rtttl:
+  output: passive_buzzer_output
+  id: passive_rtttl
+    
+  on_finished_playback:
+    - text_sensor.template.publish:
+        id: current_song
+        state: "Song Finished. Nothing is Playing"
+        
+output:
+  - platform: ledc
+    pin: ${passive}
+    id: passive_buzzer_output
+    # frequency: 1000Hz
+    # max_power: ${max_power} # set_max_power(0.0 - 1.0)
+    inverted: True
+    zero_means_zero: True
+    min_power: 0.01
+    max_power: 1
+    
+http_request:
+  id: http_request_component
+  useragent: esphome-client
+  timeout: 10s
+  verify_ssl: false
+  
+text_sensor:
+  - platform: template
+    name: "Current Song"
+    id: "current_song"
+    entity_category: "diagnostic"
+    icon: "mdi:music"
+
+button:
+  - platform: template
+    id: play_random_song
+    name: "Play Random Song"
+    icon: "mdi:music"
+    entity_category: config
+    
+    on_press:
+      then:
+        - if:
+            condition:
+              rtttl.is_playing
+            then:
+              - text_sensor.template.publish:
+                  id: current_song
+                  state: "Interrupting current song..."
+              - rtttl.stop
+              - delay: 1s
+    
+        - http_request.get:
+            url: !lambda |-
+              static const char* files[] = {
+                "http://192.168.1.47:8123/local/songs/songs1.txt",
+                "http://192.168.1.47:8123/local/songs/songs2.txt",
+                "http://192.168.1.47:8123/local/songs/songs3.txt",
+                "http://192.168.1.47:8123/local/songs/songs4.txt",
+                "http://192.168.1.47:8123/local/songs/songs5.txt",
+                "http://192.168.1.47:8123/local/songs/songs6.txt",
+                "http://192.168.1.47:8123/local/songs/songs7.txt",
+                "http://192.168.1.47:8123/local/songs/songs8.txt",
+                "http://192.168.1.47:8123/local/songs/songs9.txt",
+                "http://192.168.1.47:8123/local/songs/songs10.txt",
+                "http://192.168.1.47:8123/local/songs/songs11.txt",
+                "http://192.168.1.47:8123/local/songs/songs12.txt",
+                "http://192.168.1.47:8123/local/songs/songs13.txt",
+                "http://192.168.1.47:8123/local/songs/songs14.txt",
+                "http://192.168.1.47:8123/local/songs/songs15.txt"
+              };
+              int count = sizeof(files) / sizeof(files[0]);
+              int idx = random(0, count);
+              ESP_LOGI("songs", "Fetching song list from: %s", files[idx]);
+              return std::string(files[idx]);
+            capture_response: true
+            on_response:
+              then:
+                - lambda: |-
+                    std::string content = body.c_str();
+                    std::vector<std::string> lines;
+    
+                    size_t start = 0, end = 0;
+                    while ((end = content.find('\n', start)) != std::string::npos) {
+                      std::string line = content.substr(start, end - start);
+                      if (!line.empty() && line.back() == '\r')
+                        line.pop_back();
+                      if (!line.empty())
+                        lines.push_back(line);
+                      start = end + 1;
+                    }
+    
+                    if (start < content.length()) {
+                      std::string line = content.substr(start);
+                      if (!line.empty() && line.back() == '\r')
+                        line.pop_back();
+                      if (!line.empty())
+                        lines.push_back(line);
+                    }
+    
+    
+                    if (lines.empty()) {
+                      id(current_song).publish_state("No songs found.");
+                      return;
+                    }
+    
+                    std::string selected = lines[random(0, lines.size())];
+    
+                    size_t sep = selected.find("|||");
+                    if (sep == std::string::npos) sep = selected.find("||");
+                    if (sep == std::string::npos) sep = selected.find("|");
+                    if (sep == std::string::npos) sep = selected.find(" ");
+    
+                    if (sep == std::string::npos) {
+                      id(current_song).publish_state("Invalid format.");
+                      return;
+                    }
+    
+                    std::string title = selected.substr(0, sep);
+                    std::string rtttl = selected.substr(sep + 1);
+    
+                    while (!rtttl.empty() &&
+                          (rtttl[0] == ' ' || rtttl[0] == '|'))
+                      rtttl.erase(0, 1);
+    
+                    if (rtttl.find(':') == std::string::npos) {
+                      if (rtttl.rfind("d=", 0) == 0 ||
+                          rtttl.rfind("o=", 0) == 0 ||
+                          rtttl.rfind("b=", 0) == 0) {
+                        rtttl = title + ":" + rtttl;
+                      }
+                    }
+    
+                    if (rtttl.find("d=") == std::string::npos)
+                      rtttl = "d=4:" + rtttl;
+                    if (rtttl.find("o=") == std::string::npos)
+                      rtttl = "o=5:" + rtttl;
+                    if (rtttl.find("b=") == std::string::npos)
+                      rtttl = "b=100:" + rtttl;
+    
+                    ESP_LOGI("songs", "Playing song: %s", title.c_str());
+                    ESP_LOGD("songs", "RTTTL: %s", rtttl.c_str());
+    
+                    id(current_song).publish_state(title);
+                    id(passive_rtttl).play(rtttl.c_str());
+

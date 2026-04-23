@@ -1,0 +1,305 @@
+wifi:
+  ap:
+    ssid: "${name}-HotSpot"
+    password: "${wifipass}"
+    ap_timeout: 90s
+  min_auth_mode: WPA2
+  reboot_timeout: 90s
+    
+  networks:
+    - ssid: "${wifi}_2G"
+      password: "${wifipass}"
+    - ssid: "${wifi}"
+      password: "${wifipass}"
+    - ssid: "${wifi}_IOT"
+      password: "${wifipass}"
+
+  manual_ip:
+    static_ip: ${staticip}
+    gateway: ${gateway}
+    subnet: ${subnet}
+    dns1: ${dns1}
+    dns2: ${dns2}
+
+  use_address: ${staticip}
+
+  on_connect: 
+    - delay: 2s 
+    
+captive_portal: 
+
+time:
+  - platform: homeassistant
+    id: homeassistant_time
+    timezone: 'America/New_York'
+    
+sensor:
+  - platform: wifi_signal 
+    name: "WiFi Signal dB"
+    id: "wifi_signal_db"
+    update_interval: 60s
+    entity_category: "diagnostic"
+    icon: "mdi:wifi"
+    unit_of_measurement: 'dBm'
+
+  - platform: copy 
+    name: "WiFi Signal Percent"
+    source_id: "wifi_signal_db"
+    filters:
+      - lambda: return min(max(2 * (x + 100.0), 0.0), 100.0);
+    unit_of_measurement: '%'
+    entity_category: "diagnostic"
+
+  - platform: wifi_signal
+    name: "Wi-Fi Signal Strength"
+    id: "rssi"
+    update_interval: 60s
+    icon: "mdi:wifi-strength-outline"
+    unit_of_measurement: 'dBm'
+    entity_category: "diagnostic"
+
+  - platform: uptime
+    name: "Uptime"
+    filters:
+    - lambda: return x / 60.0;
+    unit_of_measurement: 'min'
+    icon: "mdi:timelapse"
+    entity_category: "diagnostic"
+    
+  - platform: sun
+    name: Sun Azimuth
+    type: azimuth
+    unit_of_measurement: "°"
+    accuracy_decimals: 1
+
+  - platform: sun
+    name: Sun Elevation
+    type: elevation
+    unit_of_measurement: "°"
+    accuracy_decimals: 1
+
+
+text_sensor:
+  -   # Wifi Info https://esphome.io/components/text_sensor/wifi_info.html
+    platform: wifi_info
+    ip_address:
+        name: IP Address
+        icon: "mdi:ip-network"
+    ssid:
+        name: Connected SSID
+        icon: "mdi:connection"
+    bssid:
+        name: Connected BSSID
+        icon: "mdi:connection"
+    mac_address:
+        name: Mac Wifi Address
+        icon: "mdi:wifi-settings"
+    scan_results:
+        name: Latest Scan Results
+        icon: "mdi:wifi-sync"
+    dns_address:
+        name: DNS Address
+        icon: "mdi:dns"
+     
+  - platform: template
+    name: "Wifi level"
+    id: "wifi_level"
+    entity_category: "diagnostic"
+    icon: "mdi:wifi"
+    update_interval: 60s
+    
+    lambda: |-
+      float level = float(id(rssi).state);
+      if (level >= -30){ return {"Perfect Reliable Signal"}; }
+      else if (level >= -40){ return {"Awesome Reliable Signal"}; } 
+      else if (level >= -45){ return {"Excellent Reliable Signal"}; } 
+      else if (level >= -50){ return {"Great Reliable Signal"}; } 
+      else if (level >= -55){ return {"Very Good Reliable Signal"}; } 
+      else if (level >= -60){ return {"Good Reliable Signal"}; }
+      else if (level >= -63){ return {"Fair Reliable Signal"}; }   
+      else if (level >= -67){ return {"Minimum Reliable Signal"}; } 
+      else if (level >= -70){ return {"Weak Unreliable Signal"}; }  
+      else if (level >= -75){ return {"Poor Unreliable Signal"}; }   
+      else if (level >= -80){ return {"Bad Unreliable Signal"}; } 
+      else if (level >= -85){ return {"Terrible Unreliable Signal"}; } 
+      else if (level >= -90){ return {"The Worst Unreliable Signal"}; } 
+      return {};    
+
+  - platform: template
+    name: "Current time"
+    lambda: |-
+      char str[17];
+      time_t currTime = id(homeassistant_time).now().timestamp;
+      strftime(str, sizeof(str), "%m/%d/%Y %H:%M", localtime(&currTime));
+      return  { str };
+    update_interval: 60s
+    entity_category: "diagnostic"
+    icon: "mdi:clock"
+
+
+  - platform: version
+    name: ESPHome Version
+    icon: "mdi:robot"
+
+  - platform: sun
+    name: Sunrise Time
+    id: sunrise
+    type: sunrise
+    icon: "mdi:weather-sunset-up"    
+
+  - platform: sun
+    name: Sunset Time
+    id: sunset
+    type: sunset
+    icon: "mdi:weather-sunset-down"    
+
+
+logger:
+  level: ${LOGGER}
+
+ota:
+  - platform: esphome
+    password: ${otapass}
+
+web_server: 
+  port: 80
+  version: 3
+
+api:
+  encryption:
+    key: ${apikey}
+  reboot_timeout: 120s
+  
+
+sun:
+  latitude: xxxxxxxx
+  longitude: xxxxxxxxxx
+  on_sunrise:
+  - then:
+      - logger.log: Good morning!
+  - elevation: 161°
+    then:
+      - logger.log: Good morning 2!
+  on_sunset:
+    - then:
+      - logger.log: Good evening!
+
+
+select:
+  - platform: template
+    name: restart_menu
+    id: restart_menu
+    icon: "mdi:restart"
+    optimistic: true
+    restore_value: false
+    initial_option: "None"
+    entity_category: config
+  
+    options:
+    - "None"
+    - "Reboot"
+    - "Safe-Mode"
+    - "Shutdown"
+    set_action:
+    - logger.log:
+        format: "Chosen option: %s"
+        args: ["x.c_str()"]
+    - lambda: |-
+        id(restart_menu).publish_state(x.c_str()); 
+    on_value:
+      then:
+        - if:
+            condition:
+              lambda: 'return x == "Reboot";'
+            then: 
+              - switch.turn_on: restart_switch
+        - if:
+            condition:
+              lambda: 'return x == "Safe-Mode";'
+            then: 
+              - switch.turn_on: safemode_switch
+        - if:
+            condition:
+              lambda: 'return x == "Shutdown";'
+            then: 
+              - switch.turn_on: shutdown_switch
+              
+
+switch:
+    - platform: restart
+      id: restart_switch
+      name: restart_switch
+      icon: "mdi:restart-alert" 
+      entity_category: "config"
+      internal: true
+    
+    - platform: shutdown
+      id: shutdown_switch
+      name: shutdown_switch
+      icon: "mdi:restart"
+      entity_category: "config"
+      internal: true
+      
+    - platform: safe_mode
+      id: safemode_switch
+      name: safemode_switch
+      icon: "mdi:restart-alert" 
+      entity_category: "config"
+      internal: true
+    
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
