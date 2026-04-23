@@ -1,0 +1,170 @@
+i2c:
+  id: "SHTCx_i2c"
+  sda: ${SDA}
+  scl: ${SCL}
+  scan: True
+
+sensor:
+  - platform: shtcx
+    i2c_id: SHTCx_i2c
+
+    humidity:
+      filters:
+        - filter_out: NAN
+        - heartbeat: 10s
+        - sliding_window_moving_average:
+            window_size: 9
+            send_every: 9
+        - or:
+            - throttle: 30s
+            - delta: 0.2
+      accuracy_decimals: 2
+      unit_of_measurement: '%'
+      name: "humidity"
+      id: "humidity"
+      device_class: "humidity"
+      state_class: "measurement"
+      icon: "mdi:water-percent"
+
+
+
+    temperature:
+      filters:
+        - filter_out: NAN
+        - heartbeat: 10s
+        - sliding_window_moving_average:
+            window_size: 9
+            send_every: 9
+        - or:
+            - throttle: 30s
+            - delta: 0.2
+
+      accuracy_decimals: 2
+      unit_of_measurement: °C
+      state_class: "measurement"
+      device_class: "temperature"
+      name: "temperature_celsius"
+      id: "temperature_celsius"
+      icon: "mdi:temperature-celsius"
+    address: 0x70
+    update_interval: 3s
+    
+    
+    
+
+################  HUMIDITY TEMPLATES #############
+
+  - platform: absolute_humidity
+    name: "Actual Water Vapor In The Air"
+    equation: Buck
+    temperature: temperature_celsius
+    humidity: humidity
+    accuracy_decimals: 2
+    unit_of_measurement: '%'
+    device_class: "humidity"
+    state_class: "measurement"
+    icon: "mdi:water-percent"
+    
+    
+################  TEMP TEMPLATES #############
+
+  - platform: copy 
+    source_id: "temperature_celsius"
+    name: "temperature_kelvin"
+    id: temperature_kelvin
+    accuracy_decimals: 2
+    unit_of_measurement: 'K'
+    state_class: "measurement"
+    device_class: "temperature"
+    icon: "mdi:temperature-kelvin"
+    filters:
+      - filter_out: NAN
+    #  - multiply: 1.8
+    #  - offset: +32
+    #  - lambda: return x;
+      - lambda: return x + 273.15;
+    
+  - platform: copy 
+    source_id: "temperature_celsius"
+    name: "temperature_fahrenheit"
+    id: temperature_fahrenheit
+    accuracy_decimals: 2
+    unit_of_measurement: '°F'
+    state_class: "measurement"
+    device_class: "temperature"
+    icon: "mdi:temperature-fahrenheit"
+    filters:
+      - filter_out: NAN
+      - lambda: return x * (9.0/5.0) + 32.0;
+    
+  - platform: template
+    name: "Heat Index"
+    id: "heat_index"
+    device_class: temperature
+    accuracy_decimals: 2
+    state_class: measurement
+    unit_of_measurement: '°F'
+    icon: "mdi:heat-wave"
+    update_interval: 10s
+    
+    lambda:
+      float temp = float(id(temperature_fahrenheit).state);
+      float humid = float(id(humidity).state);
+      float x;
+        if (! id(temperature_fahrenheit).state){ float temp = float(id(temperature_celsius).state) * (9/5) + 32; }
+        if (temp < 112 and temp > 80 and humid < 13){
+           x = -42.379 + (2.04901523*temp) + (10.14333127*humid) - (0.22475541*temp*humid) - (0.00683783*temp*temp) - (0.05481717*humid*humid) + (0.00122874*temp*temp*humid) + (0.00085282*temp*humid*humid) - (0.00000199*temp*temp*humid*humid)-((13-humid)/4)*sqrt((17-((temp-95)))/17);
+        } else if (temp < 87 and temp > 80 and humid > 85){
+           x = -42.379 + (2.04901523*temp) + (10.14333127*humid) - (0.22475541*temp*humid) - (0.00683783*temp*temp) - (0.05481717*humid*humid) + (0.00122874*temp*temp*humid) + (0.00085282*temp*humid*humid) - (0.00000199*temp*temp*humid*humid)-((humid-85)/10)*((87-temp)/5);
+        } else if (temp < 80){
+           x = 0.5*(temp + 61.0 + ((temp-68)*1.2) + (humid*0.094));
+        } else {
+           x = -42.379 + (2.04901523*temp) + (10.14333127*humid) - (0.22475541*temp*humid) - (0.00683783*temp*temp) - (0.05481717*humid*humid) + (0.00122874*temp*temp*humid) + (0.00085282*temp*humid*humid) - (0.00000199*temp*temp*humid*humid);
+        }
+      return(x);
+
+
+
+################  DEWPOINT TEMPLATES #############
+
+  - platform: template
+    name: "Dew Point"
+    id: dewpoint
+    lambda: |-
+      float dew_celsius = float(243.5*(log(id(humidity).state/100)+((17.67*id(temperature_celsius).state)/
+      (243.5+id(temperature_celsius).state)))/(17.67-log(id(humidity).state/100)-
+      ((17.67*id(temperature_celsius).state)/(243.5+id(temperature_celsius).state))));
+      return((dew_celsius) * (9/5) + 32);
+    unit_of_measurement: '°F'
+    icon: 'mdi:thermometer-alert'
+    device_class: temperature
+    state_class: measurement
+
+  - platform: template
+    name: "Indoor DewPoint"
+    id: indoor_dewpoint
+    lambda: |-
+      float t = id(temperature_celsius).state;
+      float h = id(humidity).state;
+      if (isnan(t) || isnan(h)) return NAN; // Safety check
+      float dew_c = 243.5 * (log(h/100.0) + ((17.67 * t) / (243.5 + t))) / (17.67 - log(h/100.0) - ((17.67 * t) / (243.5 + t)));
+      return (dew_c * 1.8) + 32.0; 
+    unit_of_measurement: "°F"
+    icon: "mdi:thermometer-water"
+
+
+################  FORECAST TEMPLATES #############
+
+      
+  - platform: homeassistant
+    name: "HASS Official Forecast"
+    id: hass_forecast
+    entity_id: sensor.custom_weather_summary
+
+  - platform: homeassistant
+    id: outdoor_temp_f
+    entity_id: weather.openweathermap
+    attribute: temperature
+    internal: true
+
+
