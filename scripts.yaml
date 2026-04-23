@@ -1,0 +1,350 @@
+alias: "ACTION MACRO: Smart Fade Or Snap"
+description: Universal State-Aware Dispatcher (Lights, Fans, HVAC)
+mode: parallel
+max: 50
+fields:
+  target_entity:
+    description: The entity_id or list of entities
+  action:
+    description: Desired state ('on' or 'off')
+  turniton:
+    description: Boolean of desired state
+  transition_time:
+    default: 10
+  max_on_brightness:
+    default: 100
+  max_off_brightness:
+    default: 0
+  on_if_below:
+    default: 100
+  off_if_above:
+    default: 0
+sequence:
+  - repeat:
+      for_each: >-
+        {{ target_entity.split(',') | map('trim') | list if target_entity is
+        string else target_entity }}
+      sequence:
+        - variables:
+            item: "{{ repeat.item }}"
+            supported: "{{ state_attr(item, 'supported_color_modes') }}"
+            is_dimmable: >-
+              {{ item.startswith('light.') and supported is not none and
+              supported | reject('eq', 'onoff') | list | length > 0 }}
+            gate: "{{ on_if_below | int if turniton else off_if_above | int }}"
+            final_pct: >-
+              {{ max_on_brightness | int if turniton else max_off_brightness |
+              int }}
+            curr_pct: >-
+              {%- set b = state_attr(item, 'brightness') -%} {{ (b / 2.55) | int
+              if b != none else (100 if is_state(item, 'on') else 0) }}
+            should_execute: >-
+              {{ (curr_pct | int) <= (gate | int) if turniton else (curr_pct |
+              int) >= (gate | int) }}
+            actual_transition: "{{ transition_time | int(10) }}"
+        - action: logbook.log
+          data:
+            name: "⚙️ MACRO: {{ item.split('.')[-1] | upper }}"
+            entity_id: "{{ item }}"
+            message: >-
+              {% set status = '✅ EXEC' if should_execute else '⏭️ SKIP' %}
+              Status: {{ status }}  Current: {{ curr_pct }}% {{ '<=' if turniton
+              else '>=' }}  Gate: {{ gate }}%  Target: {{ final_pct if
+              is_dimmable else action | upper }}
+        - action: persistent_notification.create
+          data:
+            title: >-
+              💡 Device Update: {{ item.split('.')[-1] | replace('_', ' ') |
+              title }}
+            message: >-
+              **Device:** {{ item }} **Action:** {{ action | upper }}
+              **Change:** {{ curr_pct }}% → {{ final_pct }}%  **Status:** {{ '✅
+              Success' if should_execute else '⏭️ Skipped' }}
+            notification_id: last_logic_run
+          enabled: false
+        - if:
+            - condition: template
+              value_template: "{{ should_execute }}"
+          then:
+            - choose:
+                - conditions:
+                    - condition: template
+                      value_template: "{{ is_dimmable }}"
+                  sequence:
+                    - action: >-
+                        {{ 'light.turn_off' if not turniton and final_pct == 0
+                        else 'light.turn_on' }}
+                      target:
+                        entity_id: "{{ item }}"
+                      data: |-
+                        {% if final_pct > 0 %}
+                          {"transition": {{ actual_transition }}, "brightness_pct": {{ final_pct }}}
+                        {% else %}
+                          {"transition": {{ actual_transition }}}
+                        {% endif %}
+                - conditions:
+                    - condition: template
+                      value_template: "{{ not is_dimmable }}"
+                  sequence:
+                    - action: homeassistant.turn_{{ action }}
+                      target:
+                        entity_id: "{{ item }}"
+
+
+alias: Master Room Engine
+description: >-
+  Pure State Edge Engine with Clean Logging & Shabbos Cointoss & Dynamic Brightness
+mode: parallel
+max: 50
+fields:
+  trig:
+    description: The entity_id of the sensor that fired
+  force_action:
+    description: (Optional) Pass 'on' or 'off'
+    default: ""
+  v:
+    description: The JSON dictionary from auto.jinja
+sequence:
+  - variables:
+      v: "{{ (v | from_json) if v is string else v }}"
+      friendly_name: "{{ state_attr(trig, 'friendly_name') | default(trig) }}"
+      target_area: >-
+        {%- set name = friendly_name -%}  {{ name.split(':')[0] | trim if ':' in
+        name else name.split(' ')[0] | trim }}
+      action: |-
+        {%- if force_action in ['on', 'off'] -%}
+          {{ force_action }}
+        {%- else -%}
+          {{ states(trig) }}
+        {%- endif -%}
+      turniton: "{{ action == 'on' }}"
+      transition_time: 10
+      target_max: "{{ v.target_brightness | default(100) }}"
+      final_room_devices: >-
+        {%- set devices = v.devices_to_turn_on if turniton else
+        v.devices_to_turn_off -%}  {{ [devices] if devices is string else
+        devices }}
+      lights_on: "{{ v.lights_to_turn_on | default([]) }}"
+      others_on: "{{ v.others_to_turn_on | default([]) }}"
+      log_active: >-
+        {{ v.log_meta.action_ON_active if turniton else
+        v.log_meta.action_OFF_active }}
+      log_blocked: >-
+        {{ v.log_meta.action_ON_blocked if turniton else
+        v.log_meta.action_OFF_blocked }}
+  - choose:
+      - conditions:
+          - condition: template
+            value_template: "{{ v.is_frozen or (v.is_shabbos and not v.cointoss) }}"
+        sequence:
+          - stop: 🧊 Frozen OR 🌙 Shabbos (Tails) - System Blocked
+      - conditions:
+          - condition: template
+            value_template: "{{ v.is_shabbos and v.cointoss }}"
+        sequence:
+          - delay:
+              seconds: "{{ v.randomwait | int(30) }}"
+  - action: logbook.log
+    data:
+      name: "{{ v.myarea | upper }} {{ '🟢 Turn_On' if turniton else '🔴 Turn_Off' }}"
+      message: "{{ v.log_meta.trigger_info }} | {{ log_active }} | {{ log_blocked }}"
+  - if:
+      - condition: template
+        value_template: >-
+          {{ final_room_devices | length > 0 and final_room_devices !=
+          ['Nothing'] }}
+    then:
+      - choose:
+          - conditions:
+              - condition: template
+                value_template: "{{ turniton }}"
+            sequence:
+              - if:
+                  - condition: template
+                    value_template: "{{ lights_on | length > 0 }}"
+                then:
+                  - action: script.action_macro_smart_fade_or_snap
+                    data:
+                      target_entity: "{{ lights_on }}"
+                      action: "on"
+                      turniton: true
+                      transition_time: "{{ transition_time }}"
+                      max_on_brightness: "{{ target_max }}"
+                      max_off_brightness: 0
+                      on_if_below: 100
+                      off_if_above: 0
+              - if:
+                  - condition: template
+                    value_template: "{{ others_on | length > 0 }}"
+                then:
+                  - action: script.action_macro_smart_fade_or_snap
+                    data:
+                      target_entity: "{{ others_on }}"
+                      action: "on"
+                      turniton: true
+                      transition_time: "{{ transition_time }}"
+                      max_on_brightness: 100
+                      max_off_brightness: 0
+                      on_if_below: 100
+                      off_if_above: 0
+          - conditions:
+              - condition: template
+                value_template: "{{ not turniton }}"
+            sequence:
+              - action: script.action_macro_smart_fade_or_snap
+                data:
+                  target_entity: "{{ final_room_devices }}"
+                  action: "off"
+                  turniton: false
+                  transition_time: "{{ transition_time }}"
+                  max_on_brightness: "{{ target_max }}"
+                  max_off_brightness: 0
+                  on_if_below: 100
+                  off_if_above: 0
+      - action: notify.send_message
+        target:
+          entity_id: notify.automation_tracker
+        data:
+          message: 📡 {{ v.myarea }}_{{ action }}
+        enabled: false
+      - action: logbook.log
+        data:
+          name: 🏁 {{ v.myarea | upper }} TASK COMPLETE
+          message: >-
+            ⚡ Action: {{ action | upper }} complete.  📈 Turned ON: {{
+            v.devices_to_turn_on | length }} 📉 Turned OFF: {{
+            v.devices_to_turn_off | length }}
+      - action: persistent_notification.create
+        data:
+          title: 🏠 {{ v.myarea | upper }} Engine Verdict = {{ action | upper }}
+          message: |-
+            {{ v.log_meta.trigger_info }}
+            {{ log_active }}
+            {{ log_blocked }}
+        enabled: true
+
+
+alias: 🔄 Sync All Rooms (Apply Rules)
+description: >-
+  Force-feeds the current state of all occupancy sensors into the Master Engine
+  to apply code fixes instantly.
+mode: single
+sequence:
+  - variables:
+      sensors: |-
+        {{ states.binary_sensor 
+           | selectattr('entity_id', 'search', 'arduino.*room_occupied') 
+           | rejectattr('state', 'in', ['unknown', 'unavailable'])
+           | map(attribute='entity_id') 
+           | list }}
+  - repeat:
+      for_each: "{{ sensors }}"
+      sequence:
+        - variables:
+            sensor: "{{ repeat.item }}"
+            target_area: "{{ area_id(sensor) | default('unknown') }}"
+            current_state: "{{ states(sensor) }}"
+            v_json: >-
+              {%- from 'auto.jinja' import set_all_vars -%}  {{-
+              set_all_vars(sensor, area_override=target_area) -}}
+            v: "{{ v_json | from_json }}"
+        - action: script.master_room_engine
+          data:
+            trig: "{{ sensor }}"
+            force_action: "{{ current_state }}"
+            v: "{{ v }}"
+
+
+alias: TURN ON OR OFF MYAREAS ENTITIES
+description: Turns devices on or off with a cascade effect, bypassing tracker gating.
+mode: parallel
+max: 20
+fields:
+  myarea:
+    description: The name of the room
+  action:
+    description: "'on' or 'off'"
+  turniton:
+    description: Boolean (true/false)
+  transition_time:
+    default: 3
+  max_on_brightness:
+    default: 100
+  max_off_brightness:
+    default: 0
+  on_if_below:
+    default: 100
+  off_if_above:
+    default: 0
+  room_devices:
+    description: List of entities to process
+sequence:
+  - action: logbook.log
+    data:
+      name: "SCRIPT TRIGGERED: {{ action | upper }} {{ myarea | upper }}"
+      message: >-
+        Time = {{ now().strftime('%m-%d-%Y %r') }} | Room: {{ myarea }} |
+        Devices: {{ room_devices | length }}
+  - repeat:
+      for_each: "{{ room_devices }}"
+      sequence:
+        - action: script.action_macro_smart_fade_or_snap
+          data:
+            target_entity: "{{ repeat.item }}"
+            action: "{{ action }}"
+            turniton: "{{ turniton }}"
+            transition_time: "{{ transition_time | default(5) }}"
+            max_on_brightness: "{{ max_on_brightness | default(100) }}"
+            max_off_brightness: "{{ max_off_brightness | default(0) }}"
+            on_if_below: "{{ on_if_below | default(100) }}"
+            off_if_above: "{{ off_if_above | default(0) }}"
+        - action: logbook.log
+          data:
+            name: DISPATCH | {{ myarea | upper }}
+            message: >-
+              {% set target = max_on_brightness if turniton else
+              max_off_brightness %} {% set gate = on_if_below if turniton else
+              off_if_above %} {{ "Sending {0} to {1} | Target: {2}% | Condition:
+              {3} {4}%".format(
+                action | upper, 
+                repeat.item.split('.')[-1], 
+                target, 
+                ('<=' if turniton else '>='), 
+                gate
+              ) }}
+            entity_id: "{{ repeat.item }}"
+  - action: logbook.log
+    data:
+      name: "SCRIPT COMPLETED: {{ action | upper }} {{ myarea | upper }}"
+      message: Time = {{ now().strftime('%m-%d-%Y %r') }}
+
+
+alias: AUTO-UPDATE ESPHOME ARDUINO DEVICES
+sequence:
+  - repeat:
+      for_each: >-
+        {{ states.update | selectattr('state', 'eq', 'on') | 
+        map(attribute='entity_id') |
+        select('in',integration_entities('esphome')) | list }}
+      sequence:
+        - action: logbook.log
+          metadata: {}
+          data:
+            name: Updating - {{ repeat.item }}
+            message: "\"Updating - {{ repeat.item }}\"     "
+            entity_id: "{{ this.entity_id }}"
+          enabled: true
+        - action: update.install
+          data: {}
+          target:
+            entity_id: "{{ repeat.item }}"
+        - wait_template: "{{ is_state(repeat.item, 'off') }}"
+          continue_on_timeout: true
+        - action: logbook.log
+          metadata: {}
+          data:
+            name: Updated - {{ repeat.item }}
+            message: "\"Updated - {{ repeat.item }}\"     "
+            entity_id: "{{ this.entity_id }}"
+          enabled: true
+description: ""
