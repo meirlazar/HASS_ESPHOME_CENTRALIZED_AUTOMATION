@@ -1,0 +1,27 @@
+name: "gym_arduino"
+area: "gym"
+staticip: xxx.xxx.xxx.xxx
+dsound: ${P26}
+pir1: ${P35}
+flame: ${P5}
+light: ${P25}
+water: ${P33}
+knock: ${P4}
+active: ${P32} 
+passive: ${P27} 
+vibrate: ${P23} 
+trig: ${TX0}
+echo: ${RX0}
+sda: ${SDA}
+scl: ${SCL} 
+ext_door: ${P14}
+int_door: ${P19}
+radar_tx: ${TX2}
+radar_rx: ${RX2}
+LOGGER: "NONE"
+
+
+apikey: "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+otapass: xxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+<<: !include ../esp32_38pins.yaml
+<<: !include ../wifi_subs.yaml
